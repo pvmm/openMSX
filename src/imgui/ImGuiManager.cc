@@ -41,6 +41,7 @@
 #include "RealDrive.hh"
 #include "RomDatabase.hh"
 #include "RomInfo.hh"
+#include "HotKeyInfo.hh"
 
 #include "stl.hh"
 #include "strCat.hh"
@@ -346,7 +347,19 @@ void ImGuiManager::printError(std::string_view message)
 	getCliComm().printError(message);
 }
 
-int ImGuiManager::signalEvent(const Event& event)
+static bool findEvent(
+        const ImGuiManager::WindowMap& map, const ImGuiWindow* widget, const Event& event)
+{
+	if (auto it = map.find(widget); it != map.end()) {
+		const auto& vector = (BindMap&) it->second;
+		return ranges::find_if(vector, [&](auto& p) {
+			return matches(p.event, event);
+		}) != vector.end();
+	}
+	return false;
+}
+
+int ImGuiManager::filterEvent(const Event& event)
 {
 	if (auto* evt = get_event_if<SdlEvent>(event)) {
 		const SDL_Event& sdlEvent = evt->getSdlEvent();
@@ -357,8 +370,24 @@ int ImGuiManager::signalEvent(const Event& event)
 		                             SDL_MOUSEBUTTONDOWN, SDL_MOUSEBUTTONUP)) ||
 		    (io.WantCaptureKeyboard &&
 		     sdlEvent.type == one_of(SDL_KEYDOWN, SDL_KEYUP, SDL_TEXTINPUT))) {
-			return EventDistributor::MSX; // block event for the MSX
+			if (ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows)) {
+				ImGuiContext& g = *GImGui;
+				ImGuiWindow* currentWidget = g.CurrentWindow;
+				if (findEvent(windowMap, currentWidget, event)) {
+					return EventDistributor::MSX; // deny event to listeners
+				}
+			}
 		}
+	}
+
+        // Event is not handled, only let it pass to HotKey priority.
+        return 0;
+}
+
+int ImGuiManager::signalEvent(const Event& event)
+{
+	if (auto result = filterEvent(event)) {
+		return result;
 	} else {
 		switch (getType(event)) {
 		case EventType::IMGUI_DELAYED_ACTION: {

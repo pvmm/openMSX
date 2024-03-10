@@ -6,6 +6,7 @@
 
 #include "EventListener.hh"
 #include "FilenameSetting.hh"
+#include "HotKeyInfo.hh"
 #include "IntegerSetting.hh"
 #include "Reactor.hh"
 #include "RomTypes.hh"
@@ -19,9 +20,11 @@
 #include <optional>
 #include <string_view>
 #include <vector>
+#include <map>
 
 struct ImFont;
 struct ImGuiTextBuffer;
+struct ImGuiWindow;
 
 namespace openmsx {
 
@@ -87,6 +90,9 @@ public:
 	void storeWindowPosition(gl::ivec2 pos) { windowPos = pos; }
 	[[nodiscard]] gl::ivec2 retrieveWindowPosition() const { return windowPos; }
 
+	using BindMap   = std::vector<Event>;
+	using WindowMap = std::map<const ImGuiWindow*, BindMap>;
+
 private:
 	void initializeImGui();
 	[[nodiscard]] ImFont* addFont(zstring_view filename, int fontSize);
@@ -100,6 +106,7 @@ private:
 	void loadEnd() override;
 
 	// EventListener
+	int filterEvent(const Event& event);
 	int signalEvent(const Event& event) override;
 
 	// Observer<Setting>
@@ -115,6 +122,7 @@ private:
 private:
 	Reactor& reactor;
 	std::vector<ImGuiPartInterface*> parts;
+	WindowMap windowMap;
 
 public:
 	FilenameSetting fontPropFilename;

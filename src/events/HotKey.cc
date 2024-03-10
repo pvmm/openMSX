@@ -184,7 +184,7 @@ struct EqualEvent {
 	bool operator()(const Event& e) const {
 		return event == e;
 	}
-	bool operator()(const HotKey::HotKeyInfo& info) const {
+	bool operator()(const HotKeyInfo& info) const {
 		return event == info.event;
 	}
 	const Event& event;
@@ -300,7 +300,7 @@ void HotKey::deactivateLayer(std::string_view layer)
 	}
 }
 
-static HotKey::BindMap::const_iterator findMatch(
+static BindMap::const_iterator findMatch(
 	const HotKey::BindMap& map, const Event& event)
 {
 	return ranges::find_if(map, [&](auto& p) {
@@ -429,7 +429,7 @@ HotKey::BindCmd::BindCmd(CommandController& commandController_, HotKey& hotKey_,
 {
 }
 
-static string formatBinding(const HotKey::HotKeyInfo& info)
+static string formatBinding(const HotKeyInfo& info)
 {
 	return strCat(toString(info.event), (info.repeat ? " [repeat]" : ""),
 	              (info.passEvent ? " [event]" : ""), ":  ", info.command, '\n');
@@ -494,7 +494,7 @@ void HotKey::BindCmd::execute(std::span<const TclObject> tokens, TclObject& resu
 		for (const auto& arg : view::drop(arguments, 2)) {
 			strAppend(command, ' ', arg.getString());
 		}
-		HotKey::HotKeyInfo info(
+		HotKeyInfo info(
 			createEvent(arguments[0], getInterpreter()),
 			command, repeat, passEvent);
 		if (defaultCmd) {
