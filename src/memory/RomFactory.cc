@@ -170,7 +170,14 @@ std::unique_ptr<MSXDevice> create(const DeviceConfig& config)
 	RomType type = [&] {
 		// if no type is mentioned, we assume 'mirrored' which works for most
 		// plain ROMs...
-		std::string_view typeStr = config.getChildData("mappertype", "Mirrored");
+		std::string_view typeStr;
+		if (rom.size() > 8192) {
+			typeStr = config.getChildData("mappertype", "16kB");
+		} else {
+			typeStr = config.getChildData("mappertype", "Mirrored");
+		}
+		//std::string_view typeStr = config.getChildData("mappertype", "Mirrored");
+		std::cout << "XXX " << rom.getName() <<  ", " << rom.size() << ", " << typeStr << std::endl;
 		if (typeStr == "auto") {
 			// First check whether the (possibly patched) SHA1 is in the DB
 			const RomInfo* romInfo = config.getReactor().getSoftwareDatabase().fetchRomInfo(rom.getSHA1());

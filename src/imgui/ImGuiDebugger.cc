@@ -679,6 +679,7 @@ void ImGuiDebugger::drawSlots(MSXCPUInterface& cpuInterface, Debugger& debugger)
 						ImGui::StrCat(mapper->getSelectedSegment(page));
 					} else if ((rom = dynamic_cast<MSXRom*>(device)) &&
 						(romBlocks = debugger.findDebuggable(device->getName() + " romblocks"))) {
+						if (page == 0) std::cout << "page0: " << device->getName() << " romblocks " << rom->getRomType() << " " << RomType::ROM_GENERIC_16KB << " " << RomInfo::getBlockSize(rom->getRomType()) << std::endl;
 						if (unsigned blockSize = RomInfo::getBlockSize(rom->getRomType())) {
 							std::string text;
 							char separator = 'R';
