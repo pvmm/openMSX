@@ -20,8 +20,9 @@ public:
 	  */
 	enum Priority {
 		OTHER,
-		HOTKEY,
+		GLOBAL, // HERE
 		IMGUI,
+		HOTKEY,
 		MSX,
 		LOWEST, // should only be used internally in EventDistributor
 	};
