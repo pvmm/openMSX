@@ -441,11 +441,13 @@ void HotKey::BindCmd::execute(std::span<const TclObject> tokens, TclObject& resu
 	bool layers = false;
 	bool repeat = false;
 	bool passEvent = false;
+	bool global = false;
 	std::array parserInfo = {
 		valueArg("-layer", layer),
 		flagArg("-layers", layers),
 		flagArg("-repeat", repeat),
 		flagArg("-event", passEvent),
+		flagArg("-global", global),
 	};
 	auto arguments = parseTclArgs(getInterpreter(), tokens.subspan<1>(), parserInfo);
 	if (defaultCmd && !layer.empty()) {
@@ -514,9 +516,9 @@ string HotKey::BindCmd::help(std::span<const TclObject> /*tokens*/) const
 	return strCat(
 		cmd, "                       : show all bounded keys\n",
 		cmd, " <key>                 : show binding for this key\n",
-		cmd, " <key> [-repeat] [-event] <cmd> : bind key to command, optionally "
-		"repeat command while key remains pressed and also optionally "
-		"give back the event as argument (a list) to <cmd>\n"
+		cmd, " <key> [-global] [-repeat] [-event] <cmd> : bind key to command, optionally "
+		"setting the highest priority, optionally repeat command while key remains "
+		"pressed and also optionally give back the event as argument (a list) to <cmd>\n"
 		"These 3 take an optional '-layer <layername>' option, "
 		"see activate_input_layer.\n",
 		cmd, " -layers               : show a list of layers with bound keys\n");

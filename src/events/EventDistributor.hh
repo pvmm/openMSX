@@ -19,6 +19,7 @@ public:
 	  * events for lower priority listeners.
 	  */
 	enum Priority {
+		GLOBAL, // HERE
 		OTHER,
 		HOTKEY,
 		IMGUI,
