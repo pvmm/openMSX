@@ -222,14 +222,14 @@ ImGuiManager::ImGuiManager(Reactor& reactor_)
 	ImGui::AddSettingsHandler(&ini_handler);
 
 	auto& eventDistributor = reactor.getEventDistributor();
-	eventDistributor.registerEventListener(EventType::MOUSE_BUTTON_UP,   *this, EventDistributor::IMGUI);
-	eventDistributor.registerEventListener(EventType::MOUSE_BUTTON_DOWN, *this, EventDistributor::IMGUI);
-	eventDistributor.registerEventListener(EventType::MOUSE_MOTION,      *this, EventDistributor::IMGUI);
-	eventDistributor.registerEventListener(EventType::MOUSE_WHEEL,       *this, EventDistributor::IMGUI);
-	eventDistributor.registerEventListener(EventType::KEY_UP,            *this, EventDistributor::IMGUI);
-	eventDistributor.registerEventListener(EventType::KEY_DOWN,          *this, EventDistributor::IMGUI);
-	eventDistributor.registerEventListener(EventType::TEXT,              *this, EventDistributor::IMGUI);
-	eventDistributor.registerEventListener(EventType::WINDOW,            *this, EventDistributor::IMGUI);
+	eventDistributor.registerEventListener(EventType::MOUSE_BUTTON_UP,   *this, Priority::IMGUI);
+	eventDistributor.registerEventListener(EventType::MOUSE_BUTTON_DOWN, *this, Priority::IMGUI);
+	eventDistributor.registerEventListener(EventType::MOUSE_MOTION,      *this, Priority::IMGUI);
+	eventDistributor.registerEventListener(EventType::MOUSE_WHEEL,       *this, Priority::IMGUI);
+	eventDistributor.registerEventListener(EventType::KEY_UP,            *this, Priority::IMGUI);
+	eventDistributor.registerEventListener(EventType::KEY_DOWN,          *this, Priority::IMGUI);
+	eventDistributor.registerEventListener(EventType::TEXT,              *this, Priority::IMGUI);
+	eventDistributor.registerEventListener(EventType::WINDOW,            *this, Priority::IMGUI);
 	eventDistributor.registerEventListener(EventType::FILE_DROP, *this);
 	eventDistributor.registerEventListener(EventType::IMGUI_DELAYED_ACTION, *this);
 	eventDistributor.registerEventListener(EventType::BREAK, *this);
@@ -408,10 +408,10 @@ int ImGuiManager::executeEvent(const Event& event)
 		const auto* kev = get_event_if<KeyDownEvent>(event);
 		if (kev && ImGui::IsWindowChildOf(context->NavWindow, window, false, false) &&
 		    kev->getKeyCode() == one_of(SDLK_PAGEUP, SDLK_PAGEDOWN)) {
-			return EventDistributor::HOTKEY; // block event for normal hotkeys
+			return Priority::HOTKEY; // block event for normal hotkeys
 		}
 	}
-	return EventDistributor::MSX; // block event for the MSX
+	return Priority::MSX; // block event for the MSX
 }
 
 void ImGuiManager::update(const Setting& /*setting*/) noexcept

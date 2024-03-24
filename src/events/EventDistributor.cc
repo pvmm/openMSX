@@ -18,7 +18,7 @@ EventDistributor::EventDistributor(Reactor& reactor_)
 }
 
 void EventDistributor::registerEventListener(
-		EventType type, EventListener& listener, Priority priority)
+		EventType type, EventListenerInterface& listener, Priority priority)
 {
 	std::lock_guard<std::mutex> lock(mutex);
 	auto& priorityMap = listeners[size_t(type)];
@@ -30,7 +30,7 @@ void EventDistributor::registerEventListener(
 }
 
 void EventDistributor::unregisterEventListener(
-		EventType type, EventListener& listener)
+		EventType type, EventListenerInterface& listener)
 {
 	std::lock_guard<std::mutex> lock(mutex);
 	auto& priorityMap = listeners[size_t(type)];
@@ -59,7 +59,7 @@ void EventDistributor::distributeEvent(Event&& event)
 	}
 }
 
-bool EventDistributor::isRegistered(EventType type, EventListener* listener) const
+bool EventDistributor::isRegistered(EventType type, EventListenerInterface* listener) const
 {
 	return contains(listeners[size_t(type)], listener, &Entry::listener);
 }

@@ -189,7 +189,7 @@ private:
 		[[nodiscard]] std::string help(std::span<const TclObject> tokens) const override;
 	} unicode2MsxcodeCmd;
 
-	class CapsLockAligner final : private EventListener, private Schedulable {
+	class CapsLockAligner final : private EventListener<>, private Schedulable {
 	public:
 		CapsLockAligner(EventDistributor& eventDistributor,
 				Scheduler& scheduler);

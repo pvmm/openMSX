@@ -175,7 +175,7 @@ INSTANTIATE_SERIALIZE_METHODS(MidiOutALSA);
 REGISTER_POLYMORPHIC_INITIALIZER(Pluggable, MidiOutALSA, "MidiOutALSA");
 
 // MidiInALSA ==============================================================
-class MidiInALSA final : public MidiInDevice, private EventListener
+class MidiInALSA final : public MidiInDevice, private EventListener<>
 {
 public:
 	MidiInALSA(

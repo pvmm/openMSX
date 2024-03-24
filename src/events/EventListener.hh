@@ -1,15 +1,28 @@
 #ifndef EVENTLISTENER_HH
 #define EVENTLISTENER_HH
 
+#include "EventListenerInterface.hh"
 #include "Event.hh"
 
 namespace openmsx {
 
-template<Priority PRIORITY>
-class EventListener
+/** Priorities from high to low, higher priority listeners can block
+  * events for lower priority listeners.
+  */
+enum Priority {
+	INTERNAL,
+	GLOBAL, // highest usable priority
+	IMGUI,
+	HOTKEY,
+	MSX,
+	LOWEST, // should only be used internally in EventDistributor
+};
+
+template<Priority P = Priority::INTERNAL>
+class EventListener : public EventListenerInterface
 {
 protected:
-	constexpr priority = PRIORITY;
+	static constexpr Priority PRIORITY = P;
 
 public:
 	EventListener(const EventListener&) = delete;

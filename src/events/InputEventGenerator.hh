@@ -1,6 +1,7 @@
 #ifndef INPUTEVENTGENERATOR_HH
 #define INPUTEVENTGENERATOR_HH
 
+#include "EventDistributor.hh"
 #include "BooleanSetting.hh"
 #include "Command.hh"
 #include "EventListener.hh"
@@ -12,10 +13,9 @@
 namespace openmsx {
 
 class CommandController;
-class EventDistributor;
 class GlobalSettings;
 
-class InputEventGenerator final : private EventListener
+class InputEventGenerator final : private EventListener<Priority::INTERNAL>
 {
 public:
 	InputEventGenerator(const InputEventGenerator&) = delete;

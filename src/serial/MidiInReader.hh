@@ -17,7 +17,7 @@ class EventDistributor;
 class Scheduler;
 class CommandController;
 
-class MidiInReader final : public MidiInDevice, private EventListener
+class MidiInReader final : public MidiInDevice, private EventListener<>
 {
 public:
 	MidiInReader(EventDistributor& eventDistributor, Scheduler& scheduler,

@@ -25,7 +25,7 @@ class VideoSystem;
 /** An OutputSurface which is visible to the user, such as a window or a
   * full screen display.
   */
-class VisibleSurface final : public OutputSurface, public EventListener
+class VisibleSurface final : public OutputSurface, public EventListener<>
                                 , private Observer<Setting>, private RTSchedulable
 {
 public:

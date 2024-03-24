@@ -13,7 +13,7 @@ class Reactor;
 class EventDistributor;
 class CommandController;
 
-class AfterCommand final : public Command, private EventListener
+class AfterCommand final : public Command, private EventListener<>
 {
 public:
 	using Index = uint32_t; // ObjectPool<T>::Index

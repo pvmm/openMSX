@@ -23,7 +23,7 @@ class ReverseManager;
   * It also translates host event timing into EmuTime. To better do this
   * we introduce a small delay (default 0.03s) in this translation.
   */
-class EventDelay final : private EventListener, private Schedulable
+class EventDelay final : private EventListener<Priority::MSX>, private Schedulable
 {
 public:
 	EventDelay(Scheduler& scheduler, CommandController& commandController,

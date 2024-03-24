@@ -19,7 +19,7 @@ class EventDistributor;
 class Scheduler;
 class CommandController;
 
-class RS232Tester final : public RS232Device, private EventListener
+class RS232Tester final : public RS232Device, private EventListener<>
 {
 public:
 	RS232Tester(EventDistributor& eventDistributor, Scheduler& scheduler,

@@ -17,7 +17,7 @@ namespace openmsx {
 class CommandController;
 class EventDistributor;
 
-class CliConnection : public CliListener, private EventListener
+class CliConnection : public CliListener, private EventListener<>
 {
 public:
 	void setUpdateEnable(CliComm::UpdateType type, bool value) {
