@@ -164,6 +164,7 @@ namespace openmsx::RomFactory {
 
 std::unique_ptr<MSXDevice> create(const DeviceConfig& config)
 {
+	std::cout << "ID " << config.getAttributeValue("id") << std::endl;
 	Rom rom(std::string(config.getAttributeValue("id")), "rom", config);
 
 	// Get specified mapper type from the config.
@@ -171,6 +172,7 @@ std::unique_ptr<MSXDevice> create(const DeviceConfig& config)
 		// if no type is mentioned, we assume 'mirrored' which works for most
 		// plain ROMs...
 		std::string_view typeStr = config.getChildData("mappertype", "Mirrored");
+		std::cout << rom.getName() << " XXX " << typeStr << std::endl;
 		if (typeStr == "auto") {
 			// First check whether the (possibly patched) SHA1 is in the DB
 			const RomInfo* romInfo = config.getReactor().getSoftwareDatabase().fetchRomInfo(rom.getSHA1());
@@ -188,7 +190,9 @@ std::unique_ptr<MSXDevice> create(const DeviceConfig& config)
 						return ROM_PAGE23;
 					}
 				} else {
-					return guessRomType(rom);
+					auto x = guessRomType(rom);
+					std::cout << "guessRomType called: " << x << std::endl;
+					return x; // guessRomType(rom);
 				}
 			} else {
 				return romInfo->getRomType();

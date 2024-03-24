@@ -77,6 +77,7 @@ const byte* RomBlocks<BANK_SIZE>::getReadCacheLine(word address) const
 template<unsigned BANK_SIZE>
 void RomBlocks<BANK_SIZE>::setBank(unsigned region, const byte* adr, byte block)
 {
+	std::cout << "setBank " << region << ", addr:" << reinterpret_cast<std::uintptr_t>(adr) << ", block:" << (block-0) << std::endl;
 	assert("address passed to setBank() is not serializable" &&
 	       ((adr == unmappedRead.data()) ||
 	        ((&rom[0] <= adr) && (adr <= &rom[rom.size() - 1])) ||
@@ -103,6 +104,8 @@ void RomBlocks<BANK_SIZE>::setExtraMemory(std::span<const byte> mem)
 template<unsigned BANK_SIZE>
 void RomBlocks<BANK_SIZE>::setRom(unsigned region, unsigned block)
 {
+	std::cout << "setRom " << region << ", " << block << std::endl;
+	// region: 8k regions (0 to 7)
 	// Note: Some cartridges have a number of blocks that is not a power of 2,
 	//       for those we have to make an exception for "block < nrBlocks".
 	block = (block < nrBlocks) ? block : block & blockMask;
