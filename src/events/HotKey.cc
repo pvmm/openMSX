@@ -51,33 +51,33 @@ HotKey::HotKey(RTScheduler& rtScheduler,
 	initDefaultBindings();
 
 	eventDistributor.registerEventListener(
-		EventType::KEY_DOWN, *this, EventDistributor::HOTKEY);
+		EventType::KEY_DOWN, *this, Priority::HOTKEY);
 	eventDistributor.registerEventListener(
-		EventType::KEY_UP, *this, EventDistributor::HOTKEY);
+		EventType::KEY_UP, *this, Priority::HOTKEY);
 	eventDistributor.registerEventListener(
-		EventType::MOUSE_MOTION, *this, EventDistributor::HOTKEY);
+		EventType::MOUSE_MOTION, *this, Priority::HOTKEY);
 	eventDistributor.registerEventListener(
-		EventType::MOUSE_BUTTON_DOWN, *this, EventDistributor::HOTKEY);
+		EventType::MOUSE_BUTTON_DOWN, *this, Priority::HOTKEY);
 	eventDistributor.registerEventListener(
-		EventType::MOUSE_BUTTON_UP, *this, EventDistributor::HOTKEY);
+		EventType::MOUSE_BUTTON_UP, *this, Priority::HOTKEY);
 	eventDistributor.registerEventListener(
-		EventType::MOUSE_WHEEL, *this, EventDistributor::HOTKEY);
+		EventType::MOUSE_WHEEL, *this, Priority::HOTKEY);
 	eventDistributor.registerEventListener(
-		EventType::JOY_BUTTON_DOWN, *this, EventDistributor::HOTKEY);
+		EventType::JOY_BUTTON_DOWN, *this, Priority::HOTKEY);
 	eventDistributor.registerEventListener(
-		EventType::JOY_BUTTON_UP, *this, EventDistributor::HOTKEY);
+		EventType::JOY_BUTTON_UP, *this, Priority::HOTKEY);
 	eventDistributor.registerEventListener(
-		EventType::JOY_AXIS_MOTION, *this, EventDistributor::HOTKEY);
+		EventType::JOY_AXIS_MOTION, *this, Priority::HOTKEY);
 	eventDistributor.registerEventListener(
-		EventType::JOY_HAT, *this, EventDistributor::HOTKEY);
+		EventType::JOY_HAT, *this, Priority::HOTKEY);
 	eventDistributor.registerEventListener(
-		EventType::WINDOW, *this, EventDistributor::HOTKEY);
+		EventType::WINDOW, *this, Priority::HOTKEY);
 	eventDistributor.registerEventListener(
-		EventType::FILE_DROP, *this, EventDistributor::HOTKEY);
+		EventType::FILE_DROP, *this, Priority::HOTKEY);
 	eventDistributor.registerEventListener(
-		EventType::OSD_CONTROL_RELEASE, *this, EventDistributor::HOTKEY);
+		EventType::OSD_CONTROL_RELEASE, *this, Priority::HOTKEY);
 	eventDistributor.registerEventListener(
-		EventType::OSD_CONTROL_PRESS, *this, EventDistributor::HOTKEY);
+		EventType::OSD_CONTROL_PRESS, *this, Priority::HOTKEY);
 }
 
 HotKey::~HotKey()
@@ -339,7 +339,7 @@ int HotKey::executeEvent(const Event& event)
 			executeBinding(event, *it);
 			// Deny event to MSX listeners, also don't pass event
 			// to other layers (including the default layer).
-			return EventDistributor::MSX;
+			return Priority::MSX;
 		}
 		blocking = info.blocking;
 		if (blocking) break; // don't try lower layers
@@ -348,12 +348,12 @@ int HotKey::executeEvent(const Event& event)
 	// If the event was not yet handled, try the default layer.
 	if (auto it = findMatch(cmdMap, event); it != end(cmdMap)) {
 		executeBinding(event, *it);
-		return EventDistributor::MSX; // deny event to MSX listeners
+		return Priority::MSX; // deny event to MSX listeners
 	}
 
 	// Event is not handled, only let it pass to the MSX if there was no
 	// blocking layer active.
-	return blocking ? EventDistributor::MSX : 0;
+	return blocking ? Priority::MSX : 0;
 }
 
 void HotKey::executeBinding(const Event& event, const HotKeyInfo& info)

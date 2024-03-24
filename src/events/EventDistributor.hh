@@ -2,6 +2,7 @@
 #define EVENTDISTRIBUTOR_HH
 
 #include "Event.hh"
+#include "EventListener.hh"
 #include <array>
 #include <condition_variable>
 #include <mutex>
@@ -10,23 +11,16 @@
 namespace openmsx {
 
 class Reactor;
-class EventListener;
+template
+class EventListener<Priority::OTHER>;
+//class EventListener<Priority::GLOBAL>;
+//class EventListener<Priority::IMGUI>;
+//class EventListener<Priority::HOTKEY>;
+//class EventListener<Priority::MSX>;
 
 class EventDistributor
 {
 public:
-	/** Priorities from high to low, higher priority listeners can block
-	  * events for lower priority listeners.
-	  */
-	enum Priority {
-		GLOBAL, // HERE
-		OTHER,
-		HOTKEY,
-		IMGUI,
-		MSX,
-		LOWEST, // should only be used internally in EventDistributor
-	};
-
 	explicit EventDistributor(Reactor& reactor);
 
 	/**
@@ -36,15 +30,21 @@ public:
 	 * @param priority Listeners have a priority, higher priority listeners
 	 *                 can block events for lower priority listeners.
 	 */
-	void registerEventListener(EventType type, EventListener& listener,
+	template<Priority P = OTHER>
+	void registerEventListener(EventType type, EventListener<P>& listener,
 	                           Priority priority = OTHER);
+	//template<Priority P = OTHER>
+	//void registerEventListener(EventType type, EventListener<P>& listener);
+
 
 	/**
 	 * Unregisters a previously registered event listener.
 	 * @param type The type of the events the listener should no longer receive.
 	 * @param listener Listener to unregister.
 	 */
-	void unregisterEventListener(EventType type, EventListener& listener);
+	//void unregisterEventListener(EventType type, EventListener& listener);
+	template<Priority P = Priority::OTHER>
+	void unregisterEventListener(EventType type, EventListener<P>& listener);
 
 	/** Schedule the given event for delivery. Actual delivery happens
 	  * when the deliverEvents() method is called. Events are always
@@ -67,14 +67,15 @@ public:
 	bool sleep(unsigned us);
 
 private:
-	[[nodiscard]] bool isRegistered(EventType type, EventListener* listener) const;
+	template<Priority P>
+	[[nodiscard]] bool isRegistered(EventType type, EventListener<P>* listener) const;
 
 private:
 	Reactor& reactor;
 
 	struct Entry {
 		Priority priority;
-		EventListener* listener;
+		EventListener<>* listener;
 	};
 	using PriorityMap = std::vector<Entry>; // sorted on priority
 	std::array<PriorityMap, size_t(EventType::NUM_EVENT_TYPES)> listeners;

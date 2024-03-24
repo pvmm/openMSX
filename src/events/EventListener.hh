@@ -5,8 +5,23 @@
 
 namespace openmsx {
 
+/** Priorities from high to low, higher priority listeners can block
+  * events for lower priority listeners.
+  */
+enum Priority {
+        OTHER,
+        GLOBAL, // HERE
+        IMGUI,
+        HOTKEY,
+        MSX,
+        LOWEST, // should only be used internally in EventDistributor
+};
+
+template<Priority P = Priority::OTHER>
 class EventListener
 {
+protected:
+	static constexpr Priority PRIORITY = P;
 public:
 	EventListener(const EventListener&) = delete;
 	EventListener& operator=(const EventListener&) = delete;

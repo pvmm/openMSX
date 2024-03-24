@@ -26,7 +26,7 @@ class Keyboard;
 class StateChange;
 class TclObject;
 
-class ReverseManager final : private EventListener
+class ReverseManager final : private EventListener<>
 {
 public:
 	static constexpr std::string_view REPLAY_DIR = "replays";

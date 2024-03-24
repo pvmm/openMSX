@@ -26,7 +26,7 @@ class Wav8Writer;
 
 class CassettePlayer final : public CassetteDevice, public ResampledSoundDevice
                            , public MediaInfoProvider
-                           , private EventListener
+                           , private EventListener<>
 {
 public:
 	explicit CassettePlayer(const HardwareConfig& hwConf);

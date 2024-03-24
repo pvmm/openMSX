@@ -23,7 +23,7 @@ class EventDistributor;
 class Scheduler;
 class CommandController;
 
-class RS232Net final : public RS232Device, private EventListener
+class RS232Net final : public RS232Device, private EventListener<>
 {
 public:
 	// opaque structure describing an address for use with socket functions

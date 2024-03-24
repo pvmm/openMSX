@@ -18,7 +18,7 @@ class SpeedManager;
 class ThrottleManager;
 class Setting;
 
-class RealTime final : private Schedulable, private EventListener
+class RealTime final : private Schedulable, private EventListener<>
                      , private Observer<Setting>
                      , private Observer<SpeedManager>
                      , private Observer<ThrottleManager>

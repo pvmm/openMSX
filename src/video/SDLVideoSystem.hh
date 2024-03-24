@@ -17,7 +17,7 @@ class RenderSettings;
 class Setting;
 class VisibleSurface;
 
-class SDLVideoSystem final : public VideoSystem, private EventListener
+class SDLVideoSystem final : public VideoSystem, private EventListener<>
                            , private Observer<Setting>
 {
 public:

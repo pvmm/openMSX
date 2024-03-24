@@ -4,6 +4,7 @@
 #include "Command.hh"
 #include "Event.hh"
 #include "EventListener.hh"
+#include "EventDistributor.hh"
 #include "RTSchedulable.hh"
 
 #include "TclObject.hh"
@@ -16,11 +17,10 @@
 
 namespace openmsx {
 
-class EventDistributor;
 class GlobalCommandController;
 class RTScheduler;
 
-class HotKey final : public RTSchedulable, public EventListener
+class HotKey final : public RTSchedulable, public EventListener<Priority::HOTKEY>
 {
 public:
 	struct HotKeyInfo {

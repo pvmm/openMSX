@@ -16,7 +16,7 @@ class CommandController;
 class Reactor;
 class Sha1SumCommand;
 
-class FilePool final : private Observer<Setting>, private EventListener
+class FilePool final : private Observer<Setting>, private EventListener<>
 {
 public:
 	FilePool(CommandController& controller, Reactor& reactor);

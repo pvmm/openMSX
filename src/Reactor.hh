@@ -68,7 +68,7 @@ extern int exitCode;
  * This class serializes all incoming requests so they can be handled by the
  * main thread.
  */
-class Reactor final : private Observer<Setting>, private EventListener
+class Reactor final : private Observer<Setting>, private EventListener<>
 {
 public:
 	Reactor();

@@ -15,7 +15,7 @@ class PostProcessor;
 class Video9000 final : public MSXDevice
                       , private VideoSystemChangeListener
                       , private VideoLayer
-                      , private EventListener
+                      , private EventListener<>
 {
 public:
 	explicit Video9000(const DeviceConfig& config);

@@ -12,7 +12,7 @@
 
 namespace openmsx {
 
-class ImGuiSettings final : public ImGuiPart, private EventListener
+class ImGuiSettings final : public ImGuiPart, private EventListener<>
 {
 public:
 	explicit ImGuiSettings(ImGuiManager& manager_)

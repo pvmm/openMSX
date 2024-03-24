@@ -17,8 +17,9 @@ EventDistributor::EventDistributor(Reactor& reactor_)
 {
 }
 
+template<Priority P>
 void EventDistributor::registerEventListener(
-		EventType type, EventListener& listener, Priority priority)
+		EventType type, EventListener<P>& listener, Priority priority)
 {
 	std::lock_guard<std::mutex> lock(mutex);
 	auto& priorityMap = listeners[size_t(type)];
@@ -29,8 +30,9 @@ void EventDistributor::registerEventListener(
 	priorityMap.emplace(it, Entry{priority, &listener});
 }
 
+template<Priority P>
 void EventDistributor::unregisterEventListener(
-		EventType type, EventListener& listener)
+		EventType type, EventListener<P>& listener)
 {
 	std::lock_guard<std::mutex> lock(mutex);
 	auto& priorityMap = listeners[size_t(type)];
@@ -59,7 +61,8 @@ void EventDistributor::distributeEvent(Event&& event)
 	}
 }
 
-bool EventDistributor::isRegistered(EventType type, EventListener* listener) const
+template<Priority P>
+bool EventDistributor::isRegistered(EventType type, EventListener<P>* listener) const
 {
 	return contains(listeners[size_t(type)], listener, &Entry::listener);
 }
