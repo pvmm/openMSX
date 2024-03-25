@@ -20,7 +20,7 @@ public:
 	  */
 	enum Priority {
 		OTHER,
-		GLOBAL, // HERE
+		// GLOBAL, // HERE
 		IMGUI,
 		HOTKEY,
 		MSX,

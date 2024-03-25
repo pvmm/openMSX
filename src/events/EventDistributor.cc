@@ -20,6 +20,7 @@ EventDistributor::EventDistributor(Reactor& reactor_)
 void EventDistributor::registerEventListener(
 		EventType type, EventListener& listener, Priority priority)
 {
+	// break EventDistributor.cc:23
 	std::lock_guard<std::mutex> lock(mutex);
 	auto& priorityMap = listeners[size_t(type)];
 	// a listener may only be registered once for each type
@@ -27,6 +28,7 @@ void EventDistributor::registerEventListener(
 	// insert at highest position that keeps listeners sorted on priority
 	auto it = ranges::upper_bound(priorityMap, priority, {}, &Entry::priority);
 	priorityMap.emplace(it, Entry{priority, &listener});
+	std::cout << "registerEventListener " << &listener << ", " << priority << std::endl;
 }
 
 void EventDistributor::unregisterEventListener(

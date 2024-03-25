@@ -50,6 +50,8 @@ HotKey::HotKey(RTScheduler& rtScheduler,
 {
 	initDefaultBindings();
 
+	//eventDistributor.registerEventListener(
+	//	EventType::KEY_DOWN, *this, EventDistributor::GLOBAL);
 	eventDistributor.registerEventListener(
 		EventType::KEY_DOWN, *this, EventDistributor::HOTKEY);
 	eventDistributor.registerEventListener(
@@ -336,6 +338,7 @@ int HotKey::executeEvent(const Event& event)
 	for (auto& info : view::reverse(activeLayers)) {
 		auto& cmap = layerMap[info.layer]; // ok, if this entry doesn't exist yet
 		if (auto it = findMatch(cmap, event); it != end(cmap)) {
+			std::cout << "HERE1" << std::endl;
 			executeBinding(event, *it);
 			// Deny event to MSX listeners, also don't pass event
 			// to other layers (including the default layer).
@@ -347,13 +350,14 @@ int HotKey::executeEvent(const Event& event)
 
 	// If the event was not yet handled, try the default layer.
 	if (auto it = findMatch(cmdMap, event); it != end(cmdMap)) {
+		std::cout << "HERE2" << std::endl;
 		executeBinding(event, *it);
 		return EventDistributor::MSX; // deny event to MSX listeners
 	}
 
 	// Event is not handled, only let it pass to the MSX if there was no
 	// blocking layer active.
-	return blocking ? EventDistributor::MSX : 0;
+	return blocking ? EventDistributor::IMGUI : 0;
 }
 
 void HotKey::executeBinding(const Event& event, const HotKeyInfo& info)

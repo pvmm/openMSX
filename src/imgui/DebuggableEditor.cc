@@ -105,6 +105,7 @@ void DebuggableEditor::paint(MSXMotherBoard* motherBoard)
 		}
 		drawContents(s, *debuggable, memSize);
 	});
+	viewport = ImGui::GetID(title.c_str());
 }
 
 [[nodiscard]] static unsigned DataTypeGetSize(ImGuiDataType dataType)

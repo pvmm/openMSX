@@ -95,6 +95,7 @@ private:
 	EditType dataEditingActive = HEX;
 	bool dataEditingTakeFocus = true;
 	bool updateAddr = false;
+	ImGuiID viewport;
 };
 
 } // namespace openmsx

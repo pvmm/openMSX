@@ -142,12 +142,15 @@ void ImGuiDebugger::showMenu(MSXMotherBoard* motherBoard)
 		for (auto it = b; it != e; ++it) {
 			if (!(*it)->open) {
 				(*it)->open = true;
+				//         std::vector<std::unique_ptr<DebuggableEditor>> hexEditors; // sorted on 'getDebuggableName()'
+				std::cout << "hexEditor: " << it->get();
 				return;
 			}
 		}
 		// or create a new one
 		auto index = std::distance(b, e);
 		auto it = hexEditors.insert(e, std::make_unique<DebuggableEditor>(manager, name, index));
+		std::cout << "hexEditor: " << it->get();
 		(*it)->open = true;
 	};
 
