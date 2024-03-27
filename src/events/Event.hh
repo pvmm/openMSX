@@ -24,7 +24,14 @@ enum class EventType : uint8_t;
 
 // --- The actual event classes (the Event class refers to one of these) ---
 
-class EventBase {};
+class EventBase {
+public:
+	[[nodiscard]] bool isPostponed()  const { return postponed; }
+	void setPostponed(bool postponed_) { postponed = postponed_; }
+
+protected:
+  bool postponed = false;
+};
 
 class SdlEvent : public EventBase
 {

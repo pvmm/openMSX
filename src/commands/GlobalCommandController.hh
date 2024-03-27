@@ -6,6 +6,7 @@
 #include "Interpreter.hh"
 #include "InfoCommand.hh"
 #include "InfoTopic.hh"
+#include "HotKeyManager.hh"
 #include "HotKey.hh"
 #include "SettingsConfig.hh"
 #include "RomInfoTopic.hh"
@@ -107,6 +108,7 @@ private:
 
 	Interpreter interpreter;
 	InfoCommand openMSXInfoCommand;
+  HotKeyManager hotKeyManager;
 	HotKey hotKey;
 	SettingsConfig settingsConfig;
 
