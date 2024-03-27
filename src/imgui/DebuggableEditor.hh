@@ -45,6 +45,7 @@ public:
 	void loadLine(std::string_view name, zstring_view value) override;
 	void loadEnd() override;
 	void paint(MSXMotherBoard* motherBoard) override;
+	ImGuiID getID() override;
 
 public:
 	bool open = true;
@@ -95,6 +96,7 @@ private:
 	EditType dataEditingActive = HEX;
 	bool dataEditingTakeFocus = true;
 	bool updateAddr = false;
+	ImGuiID id;
 };
 
 } // namespace openmsx

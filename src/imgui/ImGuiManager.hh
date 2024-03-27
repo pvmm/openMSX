@@ -101,6 +101,7 @@ private:
 
 	// EventListener
 	int signalEvent(const Event& event) override;
+	int executeEvent(const Event& event);
 
 	// Observer<Setting>
 	void update(const Setting& setting) noexcept override;
@@ -115,6 +116,7 @@ private:
 private:
 	Reactor& reactor;
 	std::vector<ImGuiPartInterface*> parts;
+	ImGuiContext* context;
 
 public:
 	FilenameSetting fontPropFilename;
