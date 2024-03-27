@@ -20,6 +20,7 @@ public:
 	  */
 	enum Priority {
 		OTHER,
+		GLOBAL, // highest usable priority
 		IMGUI,
 		HOTKEY,
 		MSX,

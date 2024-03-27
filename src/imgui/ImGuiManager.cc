@@ -411,7 +411,7 @@ int ImGuiManager::executeEvent(const Event& event)
 			return EventDistributor::HOTKEY; // block event for normal hotkeys
 		}
 	}
-	return EventDistributor::MSX;
+	return EventDistributor::MSX; // block event for the MSX
 }
 
 void ImGuiManager::update(const Setting& /*setting*/) noexcept

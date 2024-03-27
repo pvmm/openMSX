@@ -5,8 +5,12 @@
 
 namespace openmsx {
 
+template<Priority PRIORITY>
 class EventListener
 {
+protected:
+	constexpr priority = PRIORITY;
+
 public:
 	EventListener(const EventListener&) = delete;
 	EventListener& operator=(const EventListener&) = delete;
