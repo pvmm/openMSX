@@ -150,6 +150,7 @@ private:
 	GlobalCommandController& commandController;
 	EventDistributor& eventDistributor;
 	std::optional<Event> lastEvent;
+	std::optional<std::tuple<HotKeyInfo, Event>> postponedEvent;
 };
 
 } // namespace openmsx

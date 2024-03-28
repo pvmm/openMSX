@@ -52,6 +52,9 @@ HotKey::HotKey(RTScheduler& rtScheduler,
 
 	eventDistributor.registerEventListener(
 		EventType::KEY_DOWN, *this, EventDistributor::HOTKEY);
+	// process event after IMGUI.
+	eventDistributor.registerEventListener(
+		EventType::KEY_DOWN, *this, EventDistributor::POSTPONED);
 	eventDistributor.registerEventListener(
 		EventType::KEY_UP, *this, EventDistributor::HOTKEY);
 	eventDistributor.registerEventListener(
@@ -331,12 +334,22 @@ int HotKey::signalEvent(const Event& event)
 
 int HotKey::executeEvent(const Event& event)
 {
+	if (postponedEvent) {
+		// Postponed event runs in POSTPONED priority.
+		executeBinding(std::get<1>(*postponedEvent), std::get<0>(*postponedEvent));
+		postponedEvent.reset();
+	}
 	// First search in active layers (from back to front)
 	bool blocking = false;
 	for (auto& info : view::reverse(activeLayers)) {
 		auto& cmap = layerMap[info.layer]; // ok, if this entry doesn't exist yet
 		if (auto it = findMatch(cmap, event); it != end(cmap)) {
-			executeBinding(event, *it);
+			if (!it->global) {
+				postponedEvent = std::make_tuple(*it, event);
+			} else {
+				postponedEvent.reset();
+				executeBinding(event, *it);
+			}
 			// Deny event to MSX listeners, also don't pass event
 			// to other layers (including the default layer).
 			return EventDistributor::MSX;
@@ -347,7 +360,12 @@ int HotKey::executeEvent(const Event& event)
 
 	// If the event was not yet handled, try the default layer.
 	if (auto it = findMatch(cmdMap, event); it != end(cmdMap)) {
-		executeBinding(event, *it);
+		if (!it->global) {
+			postponedEvent = std::make_tuple(*it, event);
+		} else {
+			postponedEvent.reset();
+			executeBinding(event, *it);
+		}
 		return EventDistributor::MSX; // deny event to MSX listeners
 	}
 
@@ -508,6 +526,7 @@ void HotKey::BindCmd::execute(std::span<const TclObject> tokens, TclObject& resu
 	}
 	}
 }
+
 string HotKey::BindCmd::help(std::span<const TclObject> /*tokens*/) const
 {
 	auto cmd = getBindCmdName(defaultCmd);
