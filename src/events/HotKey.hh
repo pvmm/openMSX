@@ -20,7 +20,7 @@ class EventDistributor;
 class GlobalCommandController;
 class RTScheduler;
 
-class HotKey final : public RTSchedulable, public EventListener
+class HotKey final : public RTSchedulable
 {
 public:
 	struct HotKeyInfo {
@@ -43,6 +43,21 @@ public:
 	       GlobalCommandController& commandController,
 	       EventDistributor& eventDistributor);
 	~HotKey();
+
+	template<int P>
+	class Listener final : public EventListener
+	{
+	public:
+		Listener(HotKey& hotKey_) : hotKey(hotKey_) {}
+		~Listener();
+		inline int signalEvent(const Event& event) override;
+		inline void registerListener(EventType type, int priority = PRIORITY);
+		inline void unregisterListener(EventType type);
+
+	private:
+		HotKey& hotKey;
+		static constexpr int PRIORITY = P;
+	};
 
 	void loadInit();
 	void loadBind(std::string_view key, std::string_view cmd, bool repeat, bool event, bool global);
@@ -99,13 +114,11 @@ private:
 
 	int executeEvent(const Event& event);
 	void executeBinding(const Event& event, const HotKeyInfo& info);
-	void startRepeat  (const Event& event);
+	void startRepeat(const Event& event);
 	void stopRepeat();
 
-	// EventListener
-	int signalEvent(const Event& event) override;
 	// RTSchedulable
-	void executeRT() override;
+	void executeRT();
 
 private:
 	class BindCmd final : public Command {
@@ -155,6 +168,8 @@ private:
 	GlobalCommandController& commandController;
 	EventDistributor& eventDistributor;
 	std::optional<Event> lastEvent;
+	Listener<1> highPriority;
+	Listener<3> lowPriority;
 	std::optional<std::tuple<HotKeyInfo, Event>> postponedEvent;
 };
 

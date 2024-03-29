@@ -98,6 +98,7 @@ void EventDistributor::deliverEvents()
 
 				// This might throw, e.g. when failing to initialize video system
 				if (int block = e.listener->signalEvent(event)) {
+					assert(block > e.priority);
 					blockPriority = block;
 				}
 			}

@@ -35,6 +35,71 @@ static constexpr bool META_HOT_KEYS =
 	false;
 #endif
 
+template<int P>
+inline void HotKey::Listener<P>::registerListener(EventType type, int priority) {
+	hotKey.eventDistributor.registerEventListener(type, *this,
+		static_cast<EventDistributor::Priority>(priority));
+}
+
+template<int P>
+inline void HotKey::Listener<P>::unregisterListener(EventType type) {
+	hotKey.eventDistributor.unregisterEventListener(type, *this);
+}
+
+template<>
+HotKey::Listener<1>::Listener(HotKey& hotKey_)
+	: hotKey(hotKey_)
+{
+	hotKey.initDefaultBindings();
+
+	registerListener(EventType::KEY_DOWN);
+	registerListener(EventType::KEY_UP);
+	registerListener(EventType::MOUSE_MOTION);
+	registerListener(EventType::MOUSE_BUTTON_DOWN);
+	registerListener(EventType::MOUSE_BUTTON_UP);
+	registerListener(EventType::MOUSE_WHEEL);
+	registerListener(EventType::JOY_BUTTON_DOWN);
+	registerListener(EventType::JOY_BUTTON_UP);
+	registerListener(EventType::JOY_AXIS_MOTION);
+	registerListener(EventType::JOY_HAT);
+	registerListener(EventType::WINDOW);
+	registerListener(EventType::FILE_DROP);
+	registerListener(EventType::OSD_CONTROL_RELEASE);
+	registerListener(EventType::OSD_CONTROL_PRESS);
+}
+
+template<>
+HotKey::Listener<1>::~Listener()
+{
+	unregisterListener(EventType::OSD_CONTROL_PRESS);
+	unregisterListener(EventType::OSD_CONTROL_RELEASE);
+	unregisterListener(EventType::FILE_DROP);
+	unregisterListener(EventType::WINDOW);
+	unregisterListener(EventType::JOY_HAT);
+	unregisterListener(EventType::JOY_AXIS_MOTION);
+	unregisterListener(EventType::JOY_BUTTON_UP);
+	unregisterListener(EventType::JOY_BUTTON_DOWN);
+	unregisterListener(EventType::MOUSE_WHEEL);
+	unregisterListener(EventType::MOUSE_BUTTON_UP);
+	unregisterListener(EventType::MOUSE_BUTTON_DOWN);
+	unregisterListener(EventType::MOUSE_MOTION);
+	unregisterListener(EventType::KEY_UP);
+	unregisterListener(EventType::KEY_DOWN);
+}
+
+template<>
+HotKey::Listener<3>::Listener(HotKey& hotKey_)
+	: hotKey(hotKey_) 
+{
+	registerListener(EventType::KEY_DOWN);
+}
+
+template<>
+HotKey::Listener<3>::~Listener()
+{
+	unregisterListener(EventType::KEY_DOWN);
+}
+
 HotKey::HotKey(RTScheduler& rtScheduler,
                GlobalCommandController& commandController_,
                EventDistributor& eventDistributor_)
@@ -47,59 +112,13 @@ HotKey::HotKey(RTScheduler& rtScheduler,
 	, deactivateCmd   (commandController_)
 	, commandController(commandController_)
 	, eventDistributor(eventDistributor_)
+	, highPriority    (*this)
+	, lowPriority     (*this)
 {
-	initDefaultBindings();
-
-	eventDistributor.registerEventListener(
-		EventType::KEY_DOWN, *this, EventDistributor::HOTKEY);
-	// process event after IMGUI.
-	eventDistributor.registerEventListener(
-		EventType::KEY_DOWN, *this, EventDistributor::POSTPONED);
-	eventDistributor.registerEventListener(
-		EventType::KEY_UP, *this, EventDistributor::HOTKEY);
-	eventDistributor.registerEventListener(
-		EventType::MOUSE_MOTION, *this, EventDistributor::HOTKEY);
-	eventDistributor.registerEventListener(
-		EventType::MOUSE_BUTTON_DOWN, *this, EventDistributor::HOTKEY);
-	eventDistributor.registerEventListener(
-		EventType::MOUSE_BUTTON_UP, *this, EventDistributor::HOTKEY);
-	eventDistributor.registerEventListener(
-		EventType::MOUSE_WHEEL, *this, EventDistributor::HOTKEY);
-	eventDistributor.registerEventListener(
-		EventType::JOY_BUTTON_DOWN, *this, EventDistributor::HOTKEY);
-	eventDistributor.registerEventListener(
-		EventType::JOY_BUTTON_UP, *this, EventDistributor::HOTKEY);
-	eventDistributor.registerEventListener(
-		EventType::JOY_AXIS_MOTION, *this, EventDistributor::HOTKEY);
-	eventDistributor.registerEventListener(
-		EventType::JOY_HAT, *this, EventDistributor::HOTKEY);
-	eventDistributor.registerEventListener(
-		EventType::WINDOW, *this, EventDistributor::HOTKEY);
-	eventDistributor.registerEventListener(
-		EventType::FILE_DROP, *this, EventDistributor::HOTKEY);
-	eventDistributor.registerEventListener(
-		EventType::OSD_CONTROL_RELEASE, *this, EventDistributor::HOTKEY);
-	eventDistributor.registerEventListener(
-		EventType::OSD_CONTROL_PRESS, *this, EventDistributor::HOTKEY);
 }
 
 HotKey::~HotKey()
-{
-	eventDistributor.unregisterEventListener(EventType::OSD_CONTROL_PRESS, *this);
-	eventDistributor.unregisterEventListener(EventType::OSD_CONTROL_RELEASE, *this);
-	eventDistributor.unregisterEventListener(EventType::FILE_DROP, *this);
-	eventDistributor.unregisterEventListener(EventType::WINDOW, *this);
-	eventDistributor.unregisterEventListener(EventType::JOY_BUTTON_UP, *this);
-	eventDistributor.unregisterEventListener(EventType::JOY_BUTTON_DOWN, *this);
-	eventDistributor.unregisterEventListener(EventType::JOY_AXIS_MOTION, *this);
-	eventDistributor.unregisterEventListener(EventType::JOY_HAT, *this);
-	eventDistributor.unregisterEventListener(EventType::MOUSE_WHEEL, *this);
-	eventDistributor.unregisterEventListener(EventType::MOUSE_BUTTON_UP, *this);
-	eventDistributor.unregisterEventListener(EventType::MOUSE_BUTTON_DOWN, *this);
-	eventDistributor.unregisterEventListener(EventType::MOUSE_MOTION, *this);
-	eventDistributor.unregisterEventListener(EventType::KEY_UP, *this);
-	eventDistributor.unregisterEventListener(EventType::KEY_DOWN, *this);
-}
+{	}
 
 void HotKey::initDefaultBindings()
 {
@@ -316,9 +335,10 @@ void HotKey::executeRT()
 	if (lastEvent) executeEvent(*lastEvent);
 }
 
-int HotKey::signalEvent(const Event& event)
+template<int P>
+int HotKey::Listener<P>::signalEvent(const Event& event)
 {
-	if (lastEvent && *lastEvent != event) {
+	if (hotKey.lastEvent && *hotKey.lastEvent != event) {
 		// If the newly received event is different from the repeating
 		// event, we stop the repeat process.
 		// Except when we're repeating a OsdControlEvent and the
@@ -327,9 +347,9 @@ int HotKey::signalEvent(const Event& event)
 		// a corresponding osd event (the osd event is send before the
 		// original event). Without this hack, key-repeat will not work
 		// for osd key bindings.
-		stopRepeat();
+		hotKey.stopRepeat();
 	}
-	return executeEvent(event);
+	return hotKey.executeEvent(event);
 }
 
 int HotKey::executeEvent(const Event& event)
