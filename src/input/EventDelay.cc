@@ -30,25 +30,25 @@ EventDelay::EventDelay(Scheduler& scheduler_,
 		"delay input to avoid key-skips", 0.0, 0.0, 10.0)
 {
 	eventDistributor.registerEventListener(
-		EventType::KEY_DOWN, *this, EventDistributor::MSX);
+		EventType::KEY_DOWN, *this, Priority::MSX);
 	eventDistributor.registerEventListener(
-		EventType::KEY_UP,   *this, EventDistributor::MSX);
+		EventType::KEY_UP,   *this, Priority::MSX);
 
 	eventDistributor.registerEventListener(
-		EventType::MOUSE_MOTION,      *this, EventDistributor::MSX);
+		EventType::MOUSE_MOTION,      *this, Priority::MSX);
 	eventDistributor.registerEventListener(
-		EventType::MOUSE_BUTTON_DOWN, *this, EventDistributor::MSX);
+		EventType::MOUSE_BUTTON_DOWN, *this, Priority::MSX);
 	eventDistributor.registerEventListener(
-		EventType::MOUSE_BUTTON_UP,   *this, EventDistributor::MSX);
+		EventType::MOUSE_BUTTON_UP,   *this, Priority::MSX);
 
 	eventDistributor.registerEventListener(
-		EventType::JOY_AXIS_MOTION, *this, EventDistributor::MSX);
+		EventType::JOY_AXIS_MOTION, *this, Priority::MSX);
 	eventDistributor.registerEventListener(
-		EventType::JOY_HAT,         *this, EventDistributor::MSX);
+		EventType::JOY_HAT,         *this, Priority::MSX);
 	eventDistributor.registerEventListener(
-		EventType::JOY_BUTTON_DOWN, *this, EventDistributor::MSX);
+		EventType::JOY_BUTTON_DOWN, *this, Priority::MSX);
 	eventDistributor.registerEventListener(
-		EventType::JOY_BUTTON_UP,   *this, EventDistributor::MSX);
+		EventType::JOY_BUTTON_UP,   *this, Priority::MSX);
 
 	reverseManager.registerEventDelay(*this);
 }

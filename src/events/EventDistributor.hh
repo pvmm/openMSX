@@ -2,6 +2,7 @@
 #define EVENTDISTRIBUTOR_HH
 
 #include "Event.hh"
+#include "Priority.hh"
 #include <array>
 #include <condition_variable>
 #include <mutex>
@@ -15,18 +16,6 @@ class EventListener;
 class EventDistributor
 {
 public:
-	/** Priorities from high to low, higher priority listeners can block
-	  * events for lower priority listeners.
-	  */
-	enum Priority {
-		OTHER,
-		HOTKEY, // global hot keys are resolved here
-		IMGUI,
-		POSTPONED, // normal hot keys are resolved after ImGui
-		MSX,
-		LOWEST, // should only be used internally in EventDistributor
-	};
-
 	explicit EventDistributor(Reactor& reactor);
 
 	/**

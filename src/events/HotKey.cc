@@ -38,7 +38,7 @@ static constexpr bool META_HOT_KEYS =
 template<int P>
 inline void HotKey::Listener<P>::registerListener(EventType type, int priority) {
 	hotKey.eventDistributor.registerEventListener(type, *this,
-		static_cast<EventDistributor::Priority>(priority));
+		static_cast<Priority>(priority));
 }
 
 template<int P>
@@ -358,7 +358,7 @@ int HotKey::executeEvent(const Event& event)
 		// Postponed event runs in POSTPONED priority.
 		executeBinding(std::get<1>(*postponedEvent), std::get<0>(*postponedEvent));
 		postponedEvent.reset();
-		return EventDistributor::MSX; // deny event to the MSX
+		return Priority::MSX; // deny event to the MSX
 	}
 	postponedEvent.reset();
 
@@ -372,11 +372,11 @@ int HotKey::executeEvent(const Event& event)
 			} else {
 				postponedEvent.reset();
 				executeBinding(event, *it);
-				return EventDistributor::IMGUI; // deny event to ImGui
+				return Priority::IMGUI; // deny event to ImGui
 			}
 			// Deny event to MSX listeners, also don't pass event
 			// to other layers (including the default layer).
-			return EventDistributor::MSX;
+			return Priority::MSX;
 		}
 		blocking = info.blocking;
 		if (blocking) break; // don't try lower layers
@@ -389,14 +389,14 @@ int HotKey::executeEvent(const Event& event)
 		} else {
 			postponedEvent.reset();
 			executeBinding(event, *it);
-			return EventDistributor::IMGUI; // deny event to ImGui
+			return Priority::IMGUI; // deny event to ImGui
 		}
-		return EventDistributor::MSX; // deny event to MSX listeners
+		return Priority::MSX; // deny event to MSX listeners
 	}
 
 	// Event is not handled, only let it pass to the MSX if there was no
 	// blocking layer active.
-	return blocking ? EventDistributor::MSX : 0;
+	return blocking ? Priority::MSX : 0;
 }
 
 void HotKey::executeBinding(const Event& event, const HotKeyInfo& info)

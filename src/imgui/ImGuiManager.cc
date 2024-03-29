@@ -222,14 +222,14 @@ ImGuiManager::ImGuiManager(Reactor& reactor_)
 	ImGui::AddSettingsHandler(&ini_handler);
 
 	auto& eventDistributor = reactor.getEventDistributor();
-	eventDistributor.registerEventListener(EventType::MOUSE_BUTTON_UP,   *this, EventDistributor::IMGUI);
-	eventDistributor.registerEventListener(EventType::MOUSE_BUTTON_DOWN, *this, EventDistributor::IMGUI);
-	eventDistributor.registerEventListener(EventType::MOUSE_MOTION,      *this, EventDistributor::IMGUI);
-	eventDistributor.registerEventListener(EventType::MOUSE_WHEEL,       *this, EventDistributor::IMGUI);
-	eventDistributor.registerEventListener(EventType::KEY_UP,            *this, EventDistributor::IMGUI);
-	eventDistributor.registerEventListener(EventType::KEY_DOWN,          *this, EventDistributor::IMGUI);
-	eventDistributor.registerEventListener(EventType::TEXT,              *this, EventDistributor::IMGUI);
-	eventDistributor.registerEventListener(EventType::WINDOW,            *this, EventDistributor::IMGUI);
+	eventDistributor.registerEventListener(EventType::MOUSE_BUTTON_UP,   *this, Priority::IMGUI);
+	eventDistributor.registerEventListener(EventType::MOUSE_BUTTON_DOWN, *this, Priority::IMGUI);
+	eventDistributor.registerEventListener(EventType::MOUSE_MOTION,      *this, Priority::IMGUI);
+	eventDistributor.registerEventListener(EventType::MOUSE_WHEEL,       *this, Priority::IMGUI);
+	eventDistributor.registerEventListener(EventType::KEY_UP,            *this, Priority::IMGUI);
+	eventDistributor.registerEventListener(EventType::KEY_DOWN,          *this, Priority::IMGUI);
+	eventDistributor.registerEventListener(EventType::TEXT,              *this, Priority::IMGUI);
+	eventDistributor.registerEventListener(EventType::WINDOW,            *this, Priority::IMGUI);
 	eventDistributor.registerEventListener(EventType::FILE_DROP, *this);
 	eventDistributor.registerEventListener(EventType::IMGUI_DELAYED_ACTION, *this);
 	eventDistributor.registerEventListener(EventType::BREAK, *this);
@@ -371,7 +371,7 @@ int ImGuiManager::signalEvent(const Event& event)
 		                             SDL_MOUSEBUTTONDOWN, SDL_MOUSEBUTTONUP)) ||
 		    (io.WantCaptureKeyboard &&
 		     sdlEvent.type == one_of(SDL_KEYDOWN, SDL_KEYUP, SDL_TEXTINPUT))) {
-			return EventDistributor::POSTPONED; // block postponed events
+			return Priority::POSTPONED; // block postponed events
 		}
 	} else {
 		switch (getType(event)) {
