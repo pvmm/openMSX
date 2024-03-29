@@ -371,7 +371,7 @@ int ImGuiManager::signalEvent(const Event& event)
 		                             SDL_MOUSEBUTTONDOWN, SDL_MOUSEBUTTONUP)) ||
 		    (io.WantCaptureKeyboard &&
 		     sdlEvent.type == one_of(SDL_KEYDOWN, SDL_KEYUP, SDL_TEXTINPUT))) {
-			return Priority::POSTPONED; // block postponed events
+			return Priority::LOW_PRIORITY; // block postponed events
 		}
 	} else {
 		switch (getType(event)) {

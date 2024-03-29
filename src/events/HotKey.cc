@@ -35,19 +35,8 @@ static constexpr bool META_HOT_KEYS =
 	false;
 #endif
 
-template<int P>
-inline void HotKey::Listener<P>::registerListener(EventType type, int priority) {
-	hotKey.eventDistributor.registerEventListener(type, *this,
-		static_cast<Priority>(priority));
-}
-
-template<int P>
-inline void HotKey::Listener<P>::unregisterListener(EventType type) {
-	hotKey.eventDistributor.unregisterEventListener(type, *this);
-}
-
 template<>
-HotKey::Listener<1>::Listener(HotKey& hotKey_)
+HotKey::Listener<Priority::HOTKEY>::Listener(HotKey& hotKey_)
 	: hotKey(hotKey_)
 {
 	hotKey.initDefaultBindings();
@@ -69,7 +58,7 @@ HotKey::Listener<1>::Listener(HotKey& hotKey_)
 }
 
 template<>
-HotKey::Listener<1>::~Listener()
+HotKey::Listener<Priority::HOTKEY>::~Listener()
 {
 	unregisterListener(EventType::OSD_CONTROL_PRESS);
 	unregisterListener(EventType::OSD_CONTROL_RELEASE);
@@ -88,14 +77,14 @@ HotKey::Listener<1>::~Listener()
 }
 
 template<>
-HotKey::Listener<3>::Listener(HotKey& hotKey_)
+HotKey::Listener<Priority::LOW_PRIORITY>::Listener(HotKey& hotKey_)
 	: hotKey(hotKey_) 
 {
 	registerListener(EventType::KEY_DOWN);
 }
 
 template<>
-HotKey::Listener<3>::~Listener()
+HotKey::Listener<Priority::LOW_PRIORITY>::~Listener()
 {
 	unregisterListener(EventType::KEY_DOWN);
 }
@@ -335,7 +324,7 @@ void HotKey::executeRT()
 	if (lastEvent) executeEvent(*lastEvent);
 }
 
-template<int P>
+template<Priority P>
 int HotKey::Listener<P>::signalEvent(const Event& event)
 {
 	if (hotKey.lastEvent && *hotKey.lastEvent != event) {
@@ -355,7 +344,7 @@ int HotKey::Listener<P>::signalEvent(const Event& event)
 int HotKey::executeEvent(const Event& event)
 {
 	if (postponedEvent && getType(std::get<1>(*postponedEvent)) == getType(event)) {
-		// Postponed event runs in POSTPONED priority.
+		// Postponed event runs in LOW_PRIORITY priority.
 		executeBinding(std::get<1>(*postponedEvent), std::get<0>(*postponedEvent));
 		postponedEvent.reset();
 		return Priority::MSX; // deny event to the MSX

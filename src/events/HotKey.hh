@@ -4,7 +4,9 @@
 #include "Command.hh"
 #include "Event.hh"
 #include "EventListener.hh"
+#include "EventDistributor.hh"
 #include "RTSchedulable.hh"
+#include "Priority.hh"
 
 #include "TclObject.hh"
 
@@ -16,7 +18,6 @@
 
 namespace openmsx {
 
-class EventDistributor;
 class GlobalCommandController;
 class RTScheduler;
 
@@ -44,15 +45,19 @@ public:
 	       EventDistributor& eventDistributor);
 	~HotKey();
 
-	template<int P>
+	template<Priority P>
 	class Listener final : public EventListener
 	{
 	public:
 		Listener(HotKey& hotKey_) : hotKey(hotKey_) {}
 		~Listener();
 		inline int signalEvent(const Event& event) override;
-		inline void registerListener(EventType type, int priority = PRIORITY);
-		inline void unregisterListener(EventType type);
+		inline void registerListener(EventType type, Priority priority = P) {
+			hotKey.eventDistributor.registerEventListener(type, *this, priority);
+		}
+		inline void unregisterListener(EventType type) {
+			hotKey.eventDistributor.unregisterEventListener(type, *this);
+		}
 
 	private:
 		HotKey& hotKey;
@@ -168,8 +173,8 @@ private:
 	GlobalCommandController& commandController;
 	EventDistributor& eventDistributor;
 	std::optional<Event> lastEvent;
-	Listener<1> highPriority;
-	Listener<3> lowPriority;
+	Listener<Priority::HOTKEY> highPriority;
+	Listener<Priority::LOW_PRIORITY> lowPriority;
 	std::optional<std::tuple<HotKeyInfo, Event>> postponedEvent;
 };
 
