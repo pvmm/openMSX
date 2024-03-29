@@ -92,8 +92,8 @@ HotKey::Listener<Priority::LOW_PRIORITY>::~Listener()
 HotKey::HotKey(RTScheduler& rtScheduler,
                GlobalCommandController& commandController_,
                EventDistributor& eventDistributor_)
-	: RTSchedulable(rtScheduler)
-	, bindCmd         (commandController_, *this, false)
+	// : RTSchedulable(rtScheduler)
+	: bindCmd         (commandController_, *this, false)
 	, bindDefaultCmd  (commandController_, *this, true)
 	, unbindCmd       (commandController_, *this, false)
 	, unbindDefaultCmd(commandController_, *this, true)
@@ -101,6 +101,7 @@ HotKey::HotKey(RTScheduler& rtScheduler,
 	, deactivateCmd   (commandController_)
 	, commandController(commandController_)
 	, eventDistributor(eventDistributor_)
+	, rtScheduler     (rtScheduler, *this)
 	, highPriority    (*this)
 	, lowPriority     (*this)
 {
@@ -319,13 +320,8 @@ static HotKey::BindMap::const_iterator findMatch(
 	});
 }
 
-void HotKey::executeRT()
-{
-	if (lastEvent) executeEvent(*lastEvent);
-}
-
-template<Priority P>
-int HotKey::Listener<P>::signalEvent(const Event& event)
+template<>
+int HotKey::Listener<HOTKEY>::signalEvent(const Event& event)
 {
 	if (hotKey.lastEvent && *hotKey.lastEvent != event) {
 		// If the newly received event is different from the repeating
@@ -341,15 +337,21 @@ int HotKey::Listener<P>::signalEvent(const Event& event)
 	return hotKey.executeEvent(event);
 }
 
-int HotKey::executeEvent(const Event& event)
+template<>
+int HotKey::Listener<HOTKEY>::executeEvent([[maybe_unused]] const Event& event)
 {
-	if (postponedEvent && getType(std::get<1>(*postponedEvent)) == getType(event)) {
-		// Postponed event runs in LOW_PRIORITY priority.
-		executeBinding(std::get<1>(*postponedEvent), std::get<0>(*postponedEvent));
-		postponedEvent.reset();
-		return Priority::MSX; // deny event to the MSX
-	}
-	postponedEvent.reset();
+	return 0;
+}
+
+int HotKey::signalEvent(const Event& event)
+{
+	// if (postponedEvent && getType(std::get<1>(*postponedEvent)) == getType(event)) {
+	// 	// Postponed event runs in LOW_PRIORITY priority.
+	// 	executeBinding(std::get<1>(*postponedEvent), std::get<0>(*postponedEvent));
+	// 	postponedEvent.reset();
+	// 	return Priority::MSX; // deny event to the MSX
+	// }
+	// postponedEvent.reset();
 
 	// First search in active layers (from back to front)
 	bool blocking = false;
@@ -357,9 +359,9 @@ int HotKey::executeEvent(const Event& event)
 		auto& cmap = layerMap[info.layer]; // ok, if this entry doesn't exist yet
 		if (auto it = findMatch(cmap, event); it != end(cmap)) {
 			if (!it->global) {
-				postponedEvent = std::make_tuple(*it, event);
+				// postponedEvent = std::make_tuple(*it, event);
 			} else {
-				postponedEvent.reset();
+				// postponedEvent.reset();
 				executeBinding(event, *it);
 				return Priority::IMGUI; // deny event to ImGui
 			}
@@ -374,9 +376,9 @@ int HotKey::executeEvent(const Event& event)
 	// If the event was not yet handled, try the default layer.
 	if (auto it = findMatch(cmdMap, event); it != end(cmdMap)) {
 		if (!it->global) {
-			postponedEvent = std::make_tuple(*it, event);
+			// postponedEvent = std::make_tuple(*it, event);
 		} else {
-			postponedEvent.reset();
+			// postponedEvent.reset();
 			executeBinding(event, *it);
 			return Priority::IMGUI; // deny event to ImGui
 		}
@@ -436,13 +438,13 @@ void HotKey::startRepeat(const Event& event)
 
 	unsigned delay = (lastEvent ? PERIOD : DELAY) * 1000;
 	lastEvent = event;
-	scheduleRT(delay);
+	rtScheduler.scheduleRT(delay);
 }
 
 void HotKey::stopRepeat()
 {
 	lastEvent.reset();
-	cancelRT();
+	rtScheduler.cancelRT();
 }
 
 

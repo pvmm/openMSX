@@ -21,7 +21,7 @@ namespace openmsx {
 class GlobalCommandController;
 class RTScheduler;
 
-class HotKey final : public RTSchedulable
+class HotKey final // : public RTSchedulable
 {
 public:
 	struct HotKeyInfo {
@@ -46,22 +46,32 @@ public:
 	~HotKey();
 
 	template<Priority P>
-	class Listener final : public EventListener
+	class Listener : public EventListener
 	{
 	public:
 		Listener(HotKey& hotKey_) : hotKey(hotKey_) {}
 		~Listener();
-		inline int signalEvent(const Event& event) override;
+		inline int signalEvent([[maybe_unused]] const Event& event) override { return 0; }
 		inline void registerListener(EventType type, Priority priority = P) {
 			hotKey.eventDistributor.registerEventListener(type, *this, priority);
 		}
 		inline void unregisterListener(EventType type) {
 			hotKey.eventDistributor.unregisterEventListener(type, *this);
 		}
+		int executeEvent([[maybe_unused]] const Event& event) { return 0; }
 
-	private:
+	protected:
 		HotKey& hotKey;
 		static constexpr int PRIORITY = P;
+	};
+
+	class RTListener final : public RTSchedulable, public Listener<OTHER>
+	{
+	public:
+		RTListener(RTScheduler& rtScheduler, HotKey& hotKey_)
+			: RTSchedulable(rtScheduler), Listener(hotKey_) {}
+		// RTSchedulable
+		void executeRT() override { if (hotKey.lastEvent) executeEvent(*hotKey.lastEvent); }
 	};
 
 	void loadInit();
@@ -117,7 +127,8 @@ private:
 	void activateLayer  (std::string layer, bool blocking);
 	void deactivateLayer(std::string_view layer);
 
-	int executeEvent(const Event& event);
+	int signalEvent([[maybe_unused]] const Event& event);
+	int executeEvent([[maybe_unused]] const Event& event);
 	void executeBinding(const Event& event, const HotKeyInfo& info);
 	void startRepeat(const Event& event);
 	void stopRepeat();
@@ -173,9 +184,11 @@ private:
 	GlobalCommandController& commandController;
 	EventDistributor& eventDistributor;
 	std::optional<Event> lastEvent;
+
+	// Listeners
+	RTListener rtScheduler;
 	Listener<Priority::HOTKEY> highPriority;
 	Listener<Priority::LOW_PRIORITY> lowPriority;
-	std::optional<std::tuple<HotKeyInfo, Event>> postponedEvent;
 };
 
 } // namespace openmsx
