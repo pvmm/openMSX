@@ -53,3 +53,9 @@ if {$tcl_platform(os) eq "Darwin"} { ;# Mac
 	bind_default "keyb META+CTRL+C" copy_screen_to_clipboard
 	bind_default "keyb META+CTRL+V" type_clipboard
 }
+
+# ImGui Shortcuts won't stop MSX from receiving the same event if the MSX root
+# window has focus and for some reason it repeats Ctrl+G nonstop (maybe it's
+# missing a KeyUp event?). So I created a key binding that does nothing but
+# stops the MSX from receiving this shortcut.
+bind_default CTRL+G -msx ""
