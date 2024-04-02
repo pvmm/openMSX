@@ -61,6 +61,21 @@ ImGuiSettings::~ImGuiSettings()
 	deinitListener();
 }
 
+void ImGuiSettings::initDefaultShortcuts()
+{
+	shortcuts[ShortcutIndex::GOTO_ADDRESS] = ImGuiMod_Ctrl | ImGuiKey_G; // Ctrl+G
+}
+
+ImGuiKeyChord ImGuiSettings::getShortcut(ShortcutIndex index)
+{
+	return shortcuts[index];
+}
+
+void ImGuiSettings::setShortcut(ShortcutIndex index, ImGuiKeyChord keychord)
+{
+	shortcuts[index] = keychord;
+}
+
 void ImGuiSettings::save(ImGuiTextBuffer& buf)
 {
 	savePersistent(buf, *this, persistentElements);
@@ -364,6 +379,7 @@ void ImGuiSettings::showMenu(MSXMotherBoard* motherBoard)
 				}
 			});
 			ImGui::MenuItem("Select font...", nullptr, &showFont);
+			ImGui::MenuItem("Select shortcut...", nullptr, &showShortcut);
 		});
 		im::Menu("Misc", [&]{
 			ImGui::MenuItem("Configure OSD icons...", nullptr, &manager.osdIcons->showConfigureIcons);
@@ -1105,6 +1121,57 @@ void ImGuiSettings::paintFont()
 	});
 }
 
+// HERE4!
+void ImGuiSettings::paintShortcut()
+{
+	// Always center this window when appearing
+	ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+	ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+	im::Window("Select shortcuts", &showShortcut, ImGuiWindowFlags_AlwaysAutoResize, [&]{
+		ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+		ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+		auto gotoAddress = getKeyChordName(getShortcut(GOTO_ADDRESS));
+		if (ImGui::Button(gotoAddress.c_str()))
+			ImGui::OpenPopup("shortcut-keys", ImGuiWindowFlags_NoDecoration);
+
+		if (ImGui::BeginPopupModal("shortcut-keys", NULL, ImGuiWindowFlags_NoDecoration)) {
+			ImGui::TextWrapped("Press shortcut keys or the cancel button");
+			ImGui::Separator();
+			if (ImGui::Button("Cancel")) { ImGui::CloseCurrentPopup(); }
+			ImGui::SetItemDefaultFocus();
+			shortcut = ImGuiKey_None;
+			ImGuiIO& io = ImGui::GetIO();
+			static std::array<ImGuiKey, 12> mods = { ImGuiKey_LeftCtrl, ImGuiKey_LeftShift,
+				ImGuiKey_LeftAlt, ImGuiKey_LeftSuper, ImGuiKey_RightCtrl, ImGuiKey_RightShift,
+				ImGuiKey_RightAlt, ImGuiKey_RightSuper, ImGuiKey_ReservedForModCtrl,
+				ImGuiKey_ReservedForModShift, ImGuiKey_ReservedForModAlt, ImGuiKey_ReservedForModSuper
+			};
+			for (int key = ImGuiKey_NamedKey_BEGIN; key < ImGuiKey_NamedKey_END; ++key ) {
+				bool isMod = std::any_of(std::begin(mods), std::end(mods), [&](ImGuiKey i)
+					{ return i == key; }
+				);
+				// skip mods because they were scanned before
+				if (isMod) { continue; }
+				if (ImGui::IsKeyPressed((ImGuiKey) key)) {
+					shortcutKey = (ImGuiKey)key;
+					shortcut = key | (io.KeyCtrl ? ImGuiMod_Ctrl : 0) | (io.KeyShift ? ImGuiMod_Shift : 0)
+						| (io.KeyAlt ? ImGuiMod_Alt : 0) | (io.KeySuper ? ImGuiMod_Super : 0);
+					break;
+				}
+			}
+			if (shortcut) {
+				setShortcut(GOTO_ADDRESS, shortcut);
+				ImGui::CloseCurrentPopup();
+			}
+			ImGui::EndPopup();
+		}
+		ImGui::SameLine();
+		ImGui::TextUnformatted("go to address"sv);
+	});
+}
+
 void ImGuiSettings::paint(MSXMotherBoard* motherBoard)
 {
 	if (selectedStyle < 0) {
@@ -1114,6 +1181,7 @@ void ImGuiSettings::paint(MSXMotherBoard* motherBoard)
 	}
 	if (motherBoard && showConfigureJoystick) paintJoystick(*motherBoard);
 	if (showFont) paintFont();
+	if (showShortcut) paintShortcut();
 }
 
 std::span<const std::string> ImGuiSettings::getAvailableFonts()

@@ -265,7 +265,7 @@ float calculateFade(float current, float target, float period)
 	}
 }
 
-std::string getShortCutForCommand(const HotKey& hotkey, std::string_view command)
+const std::string getShortCutForCommand(const HotKey& hotkey, std::string_view command)
 {
 	for (const auto& info : hotkey.getGlobalBindings()) {
 		if (info.command != command) continue;
@@ -282,6 +282,19 @@ std::string getShortCutForCommand(const HotKey& hotkey, std::string_view command
 	}
 	return "";
 }
+
+// adapted from imgui_internal.h
+const std::string getKeyChordName(ImGuiKeyChord keychord)
+{
+	auto key = ImGui::GetKeyName(ImGuiKey(keychord & ~ImGuiMod_Mask_));
+	return std::string()
+		+ (keychord & ImGuiMod_Ctrl ? "Ctrl+" : "")
+		+ (keychord & ImGuiMod_Shift ? "Shift+" : "")
+		+ (keychord & ImGuiMod_Alt ? "Alt+" : "")
+		+ (keychord & ImGuiMod_Super ? (ImGui::GetIO().ConfigMacOSXBehaviors ? "Cmd+" : "Super+") : "")
+		+ key;
+}
+
 
 void setColors(int style)
 {
