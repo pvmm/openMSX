@@ -489,6 +489,8 @@ void DebuggableEditor::drawContents(const Sizes& s, Debuggable& debuggable, unsi
 			}
 			// invalid shortcut causes SIGTRAP
 			if (auto shortcut = manager.settings.get()->getShortcut(ImGuiSettings::GOTO_ADDRESS)) {
+				if (shortcuts.isPressed(Shortcuts::GOTO_ADDRESS)) {
+				}
 				if (ImGui::Shortcut(shortcut, 0, ImGuiInputFlags_RouteGlobalLow | ImGuiInputFlags_RouteUnlessBgFocused)) {
 					ImGui::SetKeyboardFocusHere(-1);
 				}

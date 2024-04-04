@@ -3,6 +3,7 @@
 
 #include "ImGuiPartInterface.hh"
 #include "ImGuiUtils.hh"
+#include "ImGuiShortcuts.hh"
 
 #include "EventListener.hh"
 #include "FilenameSetting.hh"
@@ -87,6 +88,8 @@ public:
 	void storeWindowPosition(gl::ivec2 pos) { windowPos = pos; }
 	[[nodiscard]] gl::ivec2 retrieveWindowPosition() const { return windowPos; }
 
+	ImGuiShortcuts& getShortcuts() { return shortcuts; }
+
 private:
 	void initializeImGui();
 	[[nodiscard]] ImFont* addFont(zstring_view filename, int fontSize);
@@ -116,6 +119,7 @@ private:
 
 private:
 	Reactor& reactor;
+	ImGuiShortcuts shortcuts;
 	std::vector<ImGuiPartInterface*> parts;
 	std::vector<ImGuiPartInterface*> toBeAddedParts;
 	bool removeParts = false;

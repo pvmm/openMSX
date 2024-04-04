@@ -7,7 +7,9 @@
 #include "FileOperations.hh"
 #include "MemBuffer.hh"
 #include "CliComm.hh"
+#include "Reactor.hh"
 #include "HotKey.hh"
+#include "ImGuiManager.hh"
 #include "CommandException.hh"
 #include "GlobalCommandController.hh"
 #include "TclObject.hh"
@@ -196,6 +198,8 @@ void SettingsConfig::saveSetting(std::string filename)
 	}
 	{
 		hotKey.saveBindings(xml);
+		auto& manager = commandController.getReactor().getImGuiManager();
+		manager.getShortcuts().saveShortcuts(xml);
 	}
 	xml.end("settings");
 }

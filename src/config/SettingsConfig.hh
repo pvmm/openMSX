@@ -35,7 +35,7 @@ public:
 	void removeValueForSetting(std::string_view setting);
 
 private:
-	CommandController& commandController;
+	GlobalCommandController& commandController;
 
 	struct SaveSettingsCommand final : Command {
 		explicit SaveSettingsCommand(CommandController& commandController);
