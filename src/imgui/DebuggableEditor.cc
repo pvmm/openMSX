@@ -3,6 +3,7 @@
 #include "ImGuiCpp.hh"
 #include "ImGuiManager.hh"
 #include "ImGuiSettings.hh"
+#include "ImGuiShortcuts.hh"
 #include "ImGuiUtils.hh"
 
 #include "CommandException.hh"
@@ -487,11 +488,11 @@ void DebuggableEditor::drawContents(const Sizes& s, Debuggable& debuggable, unsi
 					dataEditingTakeFocus = true;
 				}
 			}
-			// invalid shortcut causes SIGTRAP
-			if (auto shortcut = manager.settings.get()->getShortcut(ImGuiSettings::GOTO_ADDRESS)) {
-				if (ImGui::Shortcut(shortcut, 0, ImGuiInputFlags_RouteGlobalLow | ImGuiInputFlags_RouteUnlessBgFocused)) {
-					ImGui::SetKeyboardFocusHere(-1);
-				}
+			auto& shortcut = manager.getShortcuts().getShortcut(ShortcutIndex::GOTO_MEMORY_ADDRESS);
+			auto flags = (shortcut.local ? ImGuiInputFlags_RouteUnlessBgFocused : ImGuiInputFlags_RouteGlobalLow | ImGuiInputFlags_RouteUnlessBgFocused) | (shortcut.repeat ? ImGuiInputFlags_Repeat : 0);
+			// invalid shortcut causes SIGTRAP so we test if keychord is valid
+			if (shortcut.keychord && ImGui::Shortcut(shortcut.keychord, 0, flags)) {
+				ImGui::SetKeyboardFocusHere(-1);
 			}
 			simpleToolTip([&]{
 				return r.error.empty() ? strCat("0x", formatAddr(s, r.addr))

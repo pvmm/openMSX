@@ -3,6 +3,7 @@
 
 #include "ImGuiPartInterface.hh"
 #include "ImGuiUtils.hh"
+#include "ImGuiShortcuts.hh"
 
 #include "EventListener.hh"
 #include "FilenameSetting.hh"
@@ -52,6 +53,7 @@ class ImGuiTrainer;
 class ImGuiVdpRegs;
 class ImGuiWatchExpr;
 class RomInfo;
+class GlobalSettings;
 
 class ImGuiManager final : public ImGuiPartInterface, private EventListener, private Observer<Setting>
 {
@@ -59,13 +61,16 @@ public:
 	ImGuiManager(const ImGuiManager&) = delete;
 	ImGuiManager& operator=(const ImGuiManager&) = delete;
 
-	explicit ImGuiManager(Reactor& reactor_);
+	//explicit ImGuiManager(Reactor& reactor_, GlobalSettings& settings_);
+	explicit ImGuiManager(Reactor& reactor_, SettingsConfig& config_);
 	~ImGuiManager();
 
 	void   registerPart(ImGuiPartInterface* part);
 	void unregisterPart(ImGuiPartInterface* part);
 
 	[[nodiscard]] Reactor& getReactor() { return reactor; }
+	[[nodiscard]] ImGuiShortcuts& getShortcuts() { return shortcuts; }
+	//void setShortcuts(ImGuiShortcuts* shortcuts_) { shortcuts = shortcuts_; }
 	[[nodiscard]] Interpreter& getInterpreter();
 	[[nodiscard]] CliComm& getCliComm();
 	std::optional<TclObject> execute(TclObject command);
@@ -119,6 +124,8 @@ private:
 	std::vector<ImGuiPartInterface*> parts;
 	std::vector<ImGuiPartInterface*> toBeAddedParts;
 	bool removeParts = false;
+	//ImGuiShortcuts* shortcuts = nullptr;
+	ImGuiShortcuts shortcuts;
 
 public:
 	FilenameSetting fontPropFilename;

@@ -61,22 +61,6 @@ ImGuiSettings::~ImGuiSettings()
 	deinitListener();
 }
 
-void ImGuiSettings::initDefaultShortcuts()
-{
-	shortcuts[GOTO_ADDRESS] = ImGuiMod_Ctrl | ImGuiKey_G; // Ctrl+G
-	shortcuts[SOMETHING_ELSE] = ImGuiKey_None;
-}
-
-ImGuiKeyChord ImGuiSettings::getShortcut(ShortcutIndex index)
-{
-	return shortcuts[index];
-}
-
-void ImGuiSettings::setShortcut(ShortcutIndex index, ImGuiKeyChord keychord)
-{
-	shortcuts[index] = keychord;
-}
-
 void ImGuiSettings::save(ImGuiTextBuffer& buf)
 {
 	savePersistent(buf, *this, persistentElements);
@@ -112,28 +96,34 @@ bool ImGuiSettings::shortcutAction(ShortcutIndex index)
 		ImGuiKey_MouseX1, ImGuiKey_MouseX2, ImGuiKey_MouseWheelX, ImGuiKey_MouseWheelY,
 	};
 	ImGuiIO& io = ImGui::GetIO();	
-	ImGuiKeyChord shortcut = ImGuiKey_None;
+	ImGuiKeyChord keychord = ImGuiKey_None;
 	for (int key = ImGuiKey_NamedKey_BEGIN; key < ImGuiKey_NamedKey_END; ++key ) {
 		if (contains(mods, key)) continue; // skip: mods can't be primary keys in a KeyChord
 		if (ImGui::IsKeyPressed((ImGuiKey) key)) {
-			shortcut = key | (io.KeyCtrl ? ImGuiMod_Ctrl : 0) | (io.KeyShift ? ImGuiMod_Shift : 0)
+			keychord = key | (io.KeyCtrl ? ImGuiMod_Ctrl : 0) | (io.KeyShift ? ImGuiMod_Shift : 0)
 				| (io.KeyAlt ? ImGuiMod_Alt : 0) | (io.KeySuper ? ImGuiMod_Super : 0);
 			break;
 		}
 	}
-	if (shortcut != ImGuiKey_None) {
-		setShortcut(index, shortcut);
+	if (keychord != ImGuiKey_None) {
+		manager.getShortcuts().setShortcut(index, keychord);
 		return true;
 	}
 	return false;
 }
 
-void ImGuiSettings::openShortcutPopup(ShortcutIndex index, std::string label)
+void ImGuiSettings::openShortcutPopup(ShortcutIndex index)
 {
-	auto shortcutName = getShortcutName(index);
+	std::string label = getKeyChordName(manager.getShortcuts().getShortcut(index).keychord);
+	auto shortcutName = ImGuiShortcuts::getShortcutName(index);
 	auto popupName = strCat("shortcutModal##", shortcutName);
 	auto buttonName = strCat(label, "##", shortcutName);
+	auto &shortcut = manager.getShortcuts().getShortcut(index);
 
+	ImGui::Checkbox(strCat("local##", shortcutName).c_str(), &shortcut.local);
+	ImGui::SameLine();
+	ImGui::Checkbox(strCat("repeat##", shortcutName).c_str(), &shortcut.repeat);
+	ImGui::SameLine();
 	if (ImGui::Button(buttonName.c_str(), ImVec2(-1.0f, 0.0f)))
 		ImGui::OpenPopup(popupName.c_str());
 
@@ -147,7 +137,7 @@ void ImGuiSettings::openShortcutPopup(ShortcutIndex index, std::string label)
 		ImGui::TextUnformatted("Press shortcut keys or the cancel button"sv);
 		ImGui::Separator();
 		if (ImGui::Button("Clear")) {
-			setShortcut(index, ImGuiKey_None);
+			manager.getShortcuts().setShortcut(index, ImGuiKey_None, ShortcutType::LOCAL, false);
 			done = true;
 		}
 		ImGui::SameLine();
@@ -442,12 +432,12 @@ void ImGuiSettings::showMenu(MSXMotherBoard* motherBoard)
 					ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 150);
 					ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, size);
 					if (ImGui::TableNextColumn()) {
-						openShortcutPopup(GOTO_ADDRESS, getKeyChordName(getShortcut(GOTO_ADDRESS)));
+						openShortcutPopup(ShortcutIndex::GOTO_MEMORY_ADDRESS);
 					}
 					if (ImGui::TableNextColumn()) ImGui::TextUnformatted("goto address"sv);
 					ImGui::TableNextRow();
 					if (ImGui::TableNextColumn()) {
-						openShortcutPopup(SOMETHING_ELSE, getKeyChordName(getShortcut(SOMETHING_ELSE)));
+						openShortcutPopup(ShortcutIndex::GOTO_DISASM_ADDRESS);
 					}
 					if (ImGui::TableNextColumn()) ImGui::TextUnformatted("some long stuff here to test formatting"sv);
 				});
@@ -1300,14 +1290,6 @@ void ImGuiSettings::deinitListener()
 	distributor.unregisterEventListener(EventType::JOY_BUTTON_DOWN, *this);
 	distributor.unregisterEventListener(EventType::MOUSE_BUTTON_DOWN, *this);
 	distributor.unregisterEventListener(EventType::KEY_DOWN, *this);
-}
-
-std::string ImGuiSettings::getShortcutName(ShortcutIndex index) const
-{
-	static constexpr auto shortcutNames = std::array{
-		"GotoAddress", "SomethingElse"
-	};
-	return shortcutNames[index];
 }
 
 } // namespace openmsx

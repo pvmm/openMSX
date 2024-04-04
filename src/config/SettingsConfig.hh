@@ -3,6 +3,7 @@
 
 #include "SettingsManager.hh"
 #include "Command.hh"
+#include "ImGuiShortcuts.hh"
 #include "hash_map.hh"
 #include "xxhash.hh"
 #include <string>
@@ -34,8 +35,12 @@ public:
 	void setValueForSetting(std::string_view setting, std::string_view value);
 	void removeValueForSetting(std::string_view setting);
 
+	void setShortcuts(ImGuiShortcuts& shortcuts_) { shortcuts = &shortcuts_; };
+
 private:
 	CommandController& commandController;
+	ImGuiShortcuts* shortcuts;
+
 
 	struct SaveSettingsCommand final : Command {
 		explicit SaveSettingsCommand(CommandController& commandController);

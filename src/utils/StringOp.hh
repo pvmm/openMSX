@@ -21,6 +21,9 @@
 
 namespace StringOp
 {
+	template<typename T, typename std::enable_if<std::is_enum<T>::value>>
+	[[nodiscard]] std::optional<T> stringTo2(std::string_view s);
+
 	/** Convert a string to an integral type 'T' (int, uint64_t, ...).
 	  * This is similar to, but not quite the same as the family of
 	  * 'strtoll()' functions:
@@ -42,10 +45,19 @@ namespace StringOp
 	  */
 	template<std::integral T> [[nodiscard]] std::optional<T> stringTo(std::string_view s);
 
+	//template<typename T, typename std::enable_if<std::is_enum<T>::value>::type* = nullptr>
+	//[[nodiscard]] std::optional<std::underlying_type_t<T>> stringTo(std::string_view s);
+
 	/** As above, but without dynamic base detection. Moreover leading
 	  * prefixes like '0x' for hexadecimal are seen as invalid input.
 	  */
 	template<int BASE, std::integral T> [[nodiscard]] std::optional<T> stringToBase(std::string_view s);
+
+	template<typename T, typename std::enable_if<std::is_enum<T>::value>::type* = nullptr>
+	[[nodiscard]] std::optional<T> stringTo(std::string_view s) {
+		auto value = stringToBase<10, std::underlying_type_t<T>>(s);
+		return value ? std::optional<T>(static_cast<T>(*value)) : std::nullopt;
+	}
 
 	[[nodiscard]] bool stringToBool(std::string_view str);
 
