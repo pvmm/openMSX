@@ -96,17 +96,17 @@ bool ImGuiSettings::shortcutAction(ShortcutIndex index)
 		ImGuiKey_MouseX1, ImGuiKey_MouseX2, ImGuiKey_MouseWheelX, ImGuiKey_MouseWheelY,
 	};
 	ImGuiIO& io = ImGui::GetIO();	
-	ImGuiKeyChord keychord = ImGuiKey_None;
+	ImGuiKeyChord keyChord = ImGuiKey_None;
 	for (int key = ImGuiKey_NamedKey_BEGIN; key < ImGuiKey_NamedKey_END; ++key ) {
 		if (contains(mods, key)) continue; // skip: mods can't be primary keys in a KeyChord
 		if (ImGui::IsKeyPressed((ImGuiKey) key)) {
-			keychord = key | (io.KeyCtrl ? ImGuiMod_Ctrl : 0) | (io.KeyShift ? ImGuiMod_Shift : 0)
+			keyChord = key | (io.KeyCtrl ? ImGuiMod_Ctrl : 0) | (io.KeyShift ? ImGuiMod_Shift : 0)
 				| (io.KeyAlt ? ImGuiMod_Alt : 0) | (io.KeySuper ? ImGuiMod_Super : 0);
 			break;
 		}
 	}
-	if (keychord != ImGuiKey_None) {
-		manager.getShortcuts().setShortcut(index, keychord);
+	if (keyChord != ImGuiKey_None) {
+		manager.getShortcuts().setShortcut(index, keyChord);
 		return true;
 	}
 	return false;
@@ -125,9 +125,10 @@ void ImGuiSettings::openShortcutPopup(ShortcutIndex index)
 		ImGui::Checkbox(strCat("repeat##", shortcutName).c_str(), &shortcut.repeat);
 	}
 	if (ImGui::TableNextColumn()) {
-		std::string label = getKeyChordName(manager.getShortcuts().getShortcut(index).keychord);
-		if (ImGui::Button(strCat(label, "##", shortcutName).c_str(), ImVec2(-1.0f, 0.0f))) {
-			ImGui::OpenPopup(popupName.c_str());
+		if (auto label = getKeyChordName(manager.getShortcuts().getShortcut(index).keyChord)) {
+			if (ImGui::Button(strCat(*label, "##", shortcutName).c_str(), ImVec2(-1.0f, 0.0f))) {
+				ImGui::OpenPopup(popupName.c_str());
+			}
 		}
 	}
 	if (ImGui::TableNextColumn()) {
@@ -148,7 +149,7 @@ void ImGuiSettings::openShortcutPopup(ShortcutIndex index)
 		}
 		ImGui::SameLine();
 		if (ImGui::Button("Clear")) {
-			manager.getShortcuts().setShortcut(index, ImGuiKey_None, ShortcutType::LOCAL, false);
+			manager.getShortcuts().setShortcut(index, ImGuiKey_None, false, false);
 			done = true;
 		}
 		ImGui::SameLine();

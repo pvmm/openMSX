@@ -19,13 +19,14 @@ class SettingsConfig;
 
 enum ShortcutIndex {
 	GOTO_MEMORY_ADDRESS = 0,
+	STEP,
+	BREAK,
 	GOTO_DISASM_ADDRESS,
+	MOVE_UP_MEMORY,
+	MOVE_DOWN_MEMORY,
+	MOVE_LEFT_MEMORY,
+	MOVE_RIGHT_MEMORY,
 	NUM_SHORTCUTS,
-};
-
-enum ShortcutType {
-	LOCAL,    // if ImGui widget has focus
-	GLOBAL,   // inside ImGui layer only
 };
 
 class Shortcuts final
@@ -37,14 +38,15 @@ public:
 
 	// Shortcuts
 	struct Data {
-		ImGuiKeyChord keychord;
+		ImGuiKeyChord keyChord;
 		bool local = false;
 		bool repeat = false;
 	};
-	static std::string getShortcutName(ShortcutIndex index);
-	static std::string getShortcutDescription(ShortcutIndex index);
+	static const std::string_view getShortcutName(ShortcutIndex index);
+	static const std::string_view getShortcutDescription(ShortcutIndex index);
+	static std::optional<ShortcutIndex> getShortcutIndex(const std::string_view& name);
 	Shortcuts::Data& getShortcut(ShortcutIndex index);
-	void setShortcut(ShortcutIndex index, std::optional<ImGuiKeyChord> keychord = {}, std::optional<bool> local = {}, std::optional<bool> repeat = {});
+	void setShortcut(ShortcutIndex index, std::optional<ImGuiKeyChord> keyChord = {}, std::optional<bool> local = {}, std::optional<bool> repeat = {});
 	void setDefaultShortcut(ShortcutIndex index);
 	bool checkShortcut(ShortcutIndex index);
 
@@ -55,12 +57,12 @@ public:
 		xml.begin("shortcuts");
 		for (const auto& data : shortcuts) {
 			xml.begin("shortcut");
-			if (data.keychord != ImGuiKey_None) {
-				xml.attribute("keychord", std::to_string(static_cast<int>(data.keychord)));
+			if (auto name = getKeyChordName(data.keyChord)) {
+				xml.attribute("keyChord", *name);
 			}
 			if (data.repeat) xml.attribute("repeat", "true");
 			if (data.local) xml.attribute("local", "true");
-			xml.data(std::to_string(static_cast<int>(index++)));
+			xml.data(getShortcutName(static_cast<ShortcutIndex>(index++)));
 			xml.end("shortcut");
 		}
 		xml.end("shortcuts");

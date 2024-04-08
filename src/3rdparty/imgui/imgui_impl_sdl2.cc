@@ -185,7 +185,7 @@ static void ImGui_ImplSDL2_SetPlatformImeData(ImGuiViewport* viewport, ImGuiPlat
     }
 }
 
-static ImGuiKey ImGui_ImplSDL2_KeycodeToImGuiKey(int keycode)
+ImGuiKey ImGui_ImplSDL2_KeycodeToImGuiKey(int keycode)
 {
     switch (keycode)
     {

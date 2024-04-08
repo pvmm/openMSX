@@ -135,7 +135,7 @@ void SettingsConfig::loadSetting(const FileContext& context, std::string_view fi
 
 	shortcuts->setDefaultShortcuts();
 	for (const auto& [index, shortcut]: parser.shortcutTuples) {
-		shortcuts->setShortcut(static_cast<ShortcutIndex>(index), shortcut.keychord, shortcut.local, shortcut.repeat);
+		shortcuts->setShortcut(static_cast<ShortcutIndex>(index), shortcut.keyChord, shortcut.local, shortcut.repeat);
 	}
 
 	getSettingsManager().loadSettings(*this);
@@ -356,9 +356,9 @@ void SettingsParser::attribute(std::string_view name, std::string_view value)
 		}
 		break;
 	case SHORTCUT:
-		if (name == "keychord") {
-			if (auto keychord = StringOp::stringTo<int>(value))
-				currentShortcut.keychord = static_cast<ImGuiKeyChord>(*keychord);
+		if (name == "keyChord") {
+			if (auto keyChord = getKeyChordValue(value))
+				currentShortcut.keyChord = *keyChord;
 		} else if (name == "local") {
 			currentShortcut.local = StringOp::stringToBool(value);
 		} else if (name == "repeat") {
@@ -398,8 +398,8 @@ void SettingsParser::text(std::string_view txt)
 		currentBind.cmd = txt;
 		break;
 	case SHORTCUT:
-		if (auto value = StringOp::stringTo<int>(txt))
-			currentShortcutIndex = static_cast<ShortcutIndex>(*value);
+		if (auto value = Shortcuts::getShortcutIndex(txt))
+			currentShortcutIndex = *value;
 		break;
 	default:
 		break; //nothing
@@ -445,7 +445,7 @@ void SettingsParser::stop()
 		state = BINDINGS;
 		break;
 	case SHORTCUT:
-		if (currentShortcut.keychord != ImGuiKey_None) {
+		if (currentShortcut.keyChord != ImGuiKey_None) {
 			shortcutTuples.push_back(std::pair(currentShortcutIndex, currentShortcut));
 		}
 		state = SHORTCUTS;
