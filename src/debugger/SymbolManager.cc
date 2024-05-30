@@ -140,7 +140,7 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 	if (label.ends_with(':')) label.remove_suffix(1);
 	if (label.empty()) return {};
 
-	return Symbol{std::string(label), value};
+	return Symbol{std::string(label), value, -1};
 }
 
 [[nodiscard]] std::optional<Symbol> SymbolManager::checkLabelAndValue(std::string_view label, std::string_view value)
@@ -324,7 +324,7 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 			if (it == et) break;
 			auto value = *it++; // this could either be the psect or the value column
 			if (auto val = is4DigitHex(value)) {
-				result.symbols.emplace_back(std::string(label), *val);
+				result.symbols.emplace_back(std::string(label), *val, -1);
 				continue;
 			}
 
@@ -332,7 +332,7 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 			value = *it++; // try again with 3rd column
 			auto val = is4DigitHex(value);
 			if (!val) break; // if this also doesn't work there's something wrong, skip this line
-			result.symbols.emplace_back(std::string(label), *val);
+			result.symbols.emplace_back(std::string(label), *val, -1);
 		}
 	}
 

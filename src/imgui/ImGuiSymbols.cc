@@ -129,6 +129,7 @@ static void checkSort(const SymbolManager& manager, std::vector<SymbolRef>& symb
 		UNREACHABLE;
 	}
 }
+
 template<bool FILTER_FILE>
 static void drawTable(ImGuiManager& manager, const SymbolManager& symbolManager, std::vector<SymbolRef>& symbols, const std::string& file = {})
 {
@@ -143,10 +144,11 @@ static void drawTable(ImGuiManager& manager, const SymbolManager& symbolManager,
 	            ImGuiTableFlags_Sortable |
 	            ImGuiTableFlags_SizingStretchProp |
 	            (FILTER_FILE ? ImGuiTableFlags_ScrollY : 0);
-	im::Table(file.c_str(), FILTER_FILE ? 2 : 3, flags, {0, 100}, [&]{
+	im::Table(file.c_str(), FILTER_FILE ? 3 : 4, flags, {0, 100}, [&]{
 		ImGui::TableSetupScrollFreeze(0, 1); // Make top row always visible
 		ImGui::TableSetupColumn("name");
 		ImGui::TableSetupColumn("value", ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_WidthFixed);
+		ImGui::TableSetupColumn("slots");
 		if (!FILTER_FILE) {
 			ImGui::TableSetupColumn("file");
 		}
@@ -163,6 +165,31 @@ static void drawTable(ImGuiManager& manager, const SymbolManager& symbolManager,
 			if (ImGui::TableNextColumn()) { // value
 				im::ScopedFont sf(manager.fontMono);
 				ImGui::StrCat(hex_string<4>(sym.value(symbolManager)));
+			}
+			if (ImGui::TableNextColumn()) { // slots
+				im::ScopedFont sf(manager.fontMono);
+				if (sym.slots(symbolManager) == -1) {
+					ImGui::TextUnformatted("all slots");
+				} else {
+					std::string_view slots{};
+					std::string_view sep{};
+					for (auto sl = 0; sl < 4; ++sl) {
+						slots = tmpStrCat(slots, sep, sl);
+						sep = "-";
+						if (((sym.slots(symbolManager) >> (sl * 4)) & 0b1111) == 0b1111) {
+							slots = tmpStrCat(slots, sep, "*");
+						} else {
+							for (auto ss = 0; ss < 4; ++ss) {
+								if ((1 << (ss + (sl * 4))) & sym.slots(symbolManager)) {
+									slots = tmpStrCat(slots, sep, ss);
+									sep = "/";
+								}
+							}
+						}
+						sep = ", ";
+					}
+					ImGui::StrCat(slots);
+				}
 			}
 			if (!FILTER_FILE && ImGui::TableNextColumn()) { // file
 				ImGui::TextUnformatted(sym.file(symbolManager));
