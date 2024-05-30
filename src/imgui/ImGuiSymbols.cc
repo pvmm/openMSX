@@ -105,7 +105,7 @@ void ImGuiSymbols::loadFile(const std::string& filename, SymbolManager::LoadEmpt
 	}
 }
 
-static void checkSort(const SymbolManager& manager, std::vector<SymbolRef>& symbols)
+static void checkSort(SymbolManager& manager, std::vector<SymbolRef>& symbols)
 {
 	auto* sortSpecs = ImGui::TableGetSortSpecs();
 	if (!sortSpecs->SpecsDirty) return;
@@ -131,7 +131,7 @@ static void checkSort(const SymbolManager& manager, std::vector<SymbolRef>& symb
 }
 
 template<bool FILTER_FILE>
-static void drawTable(ImGuiManager& manager, const SymbolManager& symbolManager, std::vector<SymbolRef>& symbols, const std::string& file = {})
+static void drawTable(ImGuiManager& manager, SymbolManager& symbolManager, std::vector<SymbolRef>& symbols, const std::string& file = {})
 {
 	assert(FILTER_FILE == !file.empty());
 
@@ -148,7 +148,7 @@ static void drawTable(ImGuiManager& manager, const SymbolManager& symbolManager,
 		ImGui::TableSetupScrollFreeze(0, 1); // Make top row always visible
 		ImGui::TableSetupColumn("name");
 		ImGui::TableSetupColumn("value", ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_WidthFixed);
-		ImGui::TableSetupColumn("slots");
+		ImGui::TableSetupColumn("segment");
 		if (!FILTER_FILE) {
 			ImGui::TableSetupColumn("file");
 		}
@@ -160,36 +160,15 @@ static void drawTable(ImGuiManager& manager, const SymbolManager& symbolManager,
 
 			if (ImGui::TableNextColumn()) { // name
 				im::ScopedFont sf(manager.fontMono);
-				ImGui::TextUnformatted(sym.name(symbolManager));
+				ImGui::TextUnformatted(sym.name(symbolManager).data());
 			}
 			if (ImGui::TableNextColumn()) { // value
 				im::ScopedFont sf(manager.fontMono);
-				ImGui::StrCat(hex_string<4>(sym.value(symbolManager)));
+				ImGui::TextUnformatted(tmpStrCat(hex_string<4>(sym.value(symbolManager))).c_str());
 			}
-			if (ImGui::TableNextColumn()) { // slots
+			if (ImGui::TableNextColumn()) { // segment
 				im::ScopedFont sf(manager.fontMono);
-				if (sym.slots(symbolManager) == -1) {
-					ImGui::TextUnformatted("all slots");
-				} else {
-					std::string_view slots{};
-					std::string_view sep{};
-					for (auto sl = 0; sl < 4; ++sl) {
-						slots = tmpStrCat(slots, sep, sl);
-						sep = "-";
-						if (((sym.slots(symbolManager) >> (sl * 4)) & 0b1111) == 0b1111) {
-							slots = tmpStrCat(slots, sep, "*");
-						} else {
-							for (auto ss = 0; ss < 4; ++ss) {
-								if ((1 << (ss + (sl * 4))) & sym.slots(symbolManager)) {
-									slots = tmpStrCat(slots, sep, ss);
-									sep = "/";
-								}
-							}
-						}
-						sep = ", ";
-					}
-					ImGui::StrCat(slots);
-				}
+				ImGui::TextUnformatted(tmpStrCat(sym.segment(symbolManager)).c_str());
 			}
 			if (!FILTER_FILE && ImGui::TableNextColumn()) { // file
 				ImGui::TextUnformatted(sym.file(symbolManager));
