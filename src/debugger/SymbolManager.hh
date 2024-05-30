@@ -19,11 +19,12 @@ class CommandController;
 
 struct Symbol
 {
-	Symbol(std::string n, uint16_t v)
-		: name(std::move(n)), value(v) {} // clang-15 workaround
+	Symbol(std::string n, uint16_t v, int16_t s)
+		: name(std::move(n)), value(v), slots(s) {} // clang-15 workaround
 
 	std::string name;
 	uint16_t value;
+	int16_t slots;
 
 	auto operator<=>(const Symbol&) const = default;
 };
