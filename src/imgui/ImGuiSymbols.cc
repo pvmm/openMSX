@@ -160,18 +160,19 @@ static void drawTable(ImGuiManager& manager, const SymbolManager& symbolManager,
 
 			if (ImGui::TableNextColumn()) { // name
 				im::ScopedFont sf(manager.fontMono);
-				ImGui::TextUnformatted(sym.name(symbolManager));
+				ImGui::Selectable(sym.name(symbolManager).data());
 			}
 			if (ImGui::TableNextColumn()) { // value
 				im::ScopedFont sf(manager.fontMono);
-				ImGui::StrCat(hex_string<4>(sym.value(symbolManager)));
+				ImGui::Selectable(tmpStrCat(hex_string<4>(sym.value(symbolManager))).c_str());
 			}
 			if (ImGui::TableNextColumn()) { // slots
-				im::ScopedFont sf(manager.fontMono);
+				auto symNameMenu = tmpStrCat("symbol-manager##", sym.name(symbolManager)).c_str();
 				if (sym.slots(symbolManager) == -1) {
-					ImGui::TextUnformatted("all slots");
+					im::ScopedFont sf(manager.fontMono);
+					ImGui::Selectable("all slots");
 				} else {
-					std::string_view slots{};
+					zstring_view slots{};
 					std::string_view sep{};
 					for (auto sl = 0; sl < 4; ++sl) {
 						slots = tmpStrCat(slots, sep, sl);
@@ -188,8 +189,42 @@ static void drawTable(ImGuiManager& manager, const SymbolManager& symbolManager,
 						}
 						sep = ", ";
 					}
-					ImGui::StrCat(slots);
+					{
+						im::ScopedFont sf(manager.fontMono);
+						ImGui::Selectable(slots.data());
+					}
 				}
+				if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
+					ImGui::OpenPopup(symNameMenu);
+				}
+				im::Popup(symNameMenu, [&]{
+					auto flags = ImGuiTableFlags_ContextMenuInBody;
+					bool ss00, ss10, ss20, ss30;
+					im::Table("##slots-subslots", 4, flags, {0, 100}, [&]{
+						ImGui::TableSetupColumn("slot 0", ImGuiTableColumnFlags_WidthFixed);
+						ImGui::TableSetupColumn("slot 1", ImGuiTableColumnFlags_WidthFixed);
+						ImGui::TableSetupColumn("slot 2", ImGuiTableColumnFlags_WidthFixed);
+						ImGui::TableSetupColumn("slot 3", ImGuiTableColumnFlags_WidthFixed);
+						for (auto row = 0; row < 4; ++row) {
+							if (ImGui::TableNextColumn()) { // slot 0
+								im::ScopedFont sf(manager.fontMono);
+								ImGui::Checkbox(tmpStrCat("0-", row).c_str(), &ss00);
+							}
+							if (ImGui::TableNextColumn()) { // slot 1
+								im::ScopedFont sf(manager.fontMono);
+								ImGui::Checkbox(tmpStrCat("1-", row).c_str(), &ss10);
+							}
+							if (ImGui::TableNextColumn()) { // slot 2
+								im::ScopedFont sf(manager.fontMono);
+								ImGui::Checkbox(tmpStrCat("2-", row).c_str(), &ss20);
+							}
+							if (ImGui::TableNextColumn()) { // slot 3
+								im::ScopedFont sf(manager.fontMono);
+								ImGui::Checkbox(tmpStrCat("3-", row).c_str(), &ss30);
+							}
+						}
+					});
+				});
 			}
 			if (!FILTER_FILE && ImGui::TableNextColumn()) { // file
 				ImGui::TextUnformatted(sym.file(symbolManager));
