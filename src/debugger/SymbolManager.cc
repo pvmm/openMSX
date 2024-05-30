@@ -114,6 +114,27 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 	return result;
 }
 
+[[nodiscard]] std::optional<uint32_t> SymbolManager::parseValue32(std::string_view str)
+{
+	if (str.ends_with('h') || str.ends_with('H')) { // hex
+		str.remove_suffix(1);
+		return StringOp::stringToBase<16, uint32_t>(str);
+	}
+	if (str.starts_with('$') || str.starts_with('#')) { // hex
+		str.remove_prefix(1);
+		return StringOp::stringToBase<16, uint32_t>(str);
+	}
+	if (str.starts_with('%')) { // bin
+		str.remove_prefix(1);
+		return StringOp::stringToBase<2, uint32_t>(str);
+	}
+	// this recognizes the prefixes "0x" or "0X" (for hexadecimal)
+	//                          and "0b" or "0B" (for binary)
+	// no prefix in interpreted as decimal
+	// "0" as a prefix for octal is intentionally NOT supported
+	return StringOp::stringTo<uint32_t>(str);
+}
+
 [[nodiscard]] std::optional<uint16_t> SymbolManager::parseValue(std::string_view str)
 {
 	if (str.ends_with('h') || str.ends_with('H')) { // hex
@@ -135,17 +156,17 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 	return StringOp::stringTo<uint16_t>(str);
 }
 
-[[nodiscard]] std::optional<Symbol> SymbolManager::checkLabel(std::string_view label, uint16_t value)
+[[nodiscard]] std::optional<Symbol> SymbolManager::checkLabel(std::string_view label, uint32_t value)
 {
 	if (label.ends_with(':')) label.remove_suffix(1);
 	if (label.empty()) return {};
 
-	return Symbol{std::string(label), value};
+	return Symbol{std::string(label), static_cast<uint16_t>(value), {}, static_cast<uint16_t>(value >> 16)};
 }
 
 [[nodiscard]] std::optional<Symbol> SymbolManager::checkLabelAndValue(std::string_view label, std::string_view value)
 {
-	if (auto num = parseValue(value)) {
+	if (auto num = parseValue32(value)) {
 		return checkLabel(label, *num);
 	}
 	return {};
@@ -324,7 +345,7 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 			if (it == et) break;
 			auto value = *it++; // this could either be the psect or the value column
 			if (auto val = is4DigitHex(value)) {
-				result.symbols.emplace_back(std::string(label), *val);
+				result.symbols.emplace_back(std::string(label), *val, std::nullopt, std::nullopt);
 				continue;
 			}
 
@@ -332,14 +353,14 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 			value = *it++; // try again with 3rd column
 			auto val = is4DigitHex(value);
 			if (!val) break; // if this also doesn't work there's something wrong, skip this line
-			result.symbols.emplace_back(std::string(label), *val);
+			result.symbols.emplace_back(std::string(label), *val, std::nullopt, std::nullopt);
 		}
 	}
 
 	return result;
 }
 
-[[nodiscard]] SymbolFile SymbolManager::loadSymbolFile(const std::string& filename, SymbolFile::Type type)
+[[nodiscard]] SymbolFile SymbolManager::loadSymbolFile(const std::string& filename, SymbolFile::Type type, std::optional<uint8_t> slot)
 {
 	File file(filename);
 	auto buf = file.mmap();
@@ -351,21 +372,31 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 	}
 	assert(type != AUTO_DETECT);
 
-	switch (type) {
-		case ASMSX:
-			return loadASMSX(filename, buffer);
-		case GENERIC:
-			return loadGeneric(filename, buffer);
-		case HTC:
-			return loadHTC(filename, buffer);
-		case LINKMAP:
-			return loadLinkMap(filename, buffer);
-		case NOICE:
-			return loadNoICE(filename, buffer);
-		case VASM:
-			return loadVASM(filename, buffer);
-		default: UNREACHABLE;
+	auto symbolFile = [&]{
+		switch (type) {
+			case ASMSX:
+				return loadASMSX(filename, buffer);
+			case GENERIC:
+				return loadGeneric(filename, buffer);
+			case HTC:
+				return loadHTC(filename, buffer);
+			case LINKMAP:
+				return loadLinkMap(filename, buffer);
+			case NOICE:
+				return loadNoICE(filename, buffer);
+			case VASM:
+				return loadVASM(filename, buffer);
+			default: UNREACHABLE;
+		}
+	}();
+
+	// Update slot and subslot info for every file and symbol
+	symbolFile.slot = slot;
+	for (auto& symbol: symbolFile.getSymbols()) {
+		symbol.slot = slot;
 	}
+
+	return symbolFile;
 }
 
 void SymbolManager::refresh()
@@ -386,9 +417,9 @@ void SymbolManager::refresh()
 	if (observer) observer->notifySymbolsChanged();
 }
 
-bool SymbolManager::reloadFile(const std::string& filename, LoadEmpty loadEmpty, SymbolFile::Type type)
+bool SymbolManager::reloadFile(const std::string& filename, LoadEmpty loadEmpty, SymbolFile::Type type, std::optional<uint8_t> slot)
 {
-	auto file = loadSymbolFile(filename, type); // might throw
+	auto file = loadSymbolFile(filename, type, slot); // might throw
 	if (file.symbols.empty() && loadEmpty == LoadEmpty::NOT_ALLOWED) return false;
 
 	if (auto it = ranges::find(files, filename, &SymbolFile::filename);
@@ -451,6 +482,15 @@ std::span<Symbol const * const> SymbolManager::lookupValue(uint16_t value)
 		return *sym;
 	}
 	return {};
+}
+
+SymbolFile* SymbolManager::findFile(std::string filename)
+{
+	if (auto it = ranges::find(files, filename, &SymbolFile::filename); it == files.end()) {
+		return nullptr;
+	} else {
+		return &(*it);
+	}
 }
 
 std::string SymbolManager::getFileFilters()
