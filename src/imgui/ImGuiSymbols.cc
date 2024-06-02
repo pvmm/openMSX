@@ -105,7 +105,7 @@ void ImGuiSymbols::loadFile(const std::string& filename, SymbolManager::LoadEmpt
 	}
 }
 
-static void checkSort(const SymbolManager& manager, std::vector<SymbolRef>& symbols)
+static void checkSort(SymbolManager& manager, std::vector<SymbolRef>& symbols)
 {
 	auto* sortSpecs = ImGui::TableGetSortSpecs();
 	if (!sortSpecs->SpecsDirty) return;
@@ -130,38 +130,32 @@ static void checkSort(const SymbolManager& manager, std::vector<SymbolRef>& symb
 	}
 }
 
-static void drawSlots(ImGuiManager& manager)
+static void drawSlots(ImGuiManager& manager, const SymbolRef& sym, SymbolManager& symbolManager)
 {
 	auto flags = ImGuiTableFlags_ContextMenuInBody;
-	bool ss00, ss10, ss20, ss30;
 	im::Table("##slots-subslots", 4, flags, {0, 100}, [&]{
 		ImGui::TableSetupColumn("slot 0", ImGuiTableColumnFlags_WidthFixed);
 		ImGui::TableSetupColumn("slot 1", ImGuiTableColumnFlags_WidthFixed);
 		ImGui::TableSetupColumn("slot 2", ImGuiTableColumnFlags_WidthFixed);
 		ImGui::TableSetupColumn("slot 3", ImGuiTableColumnFlags_WidthFixed);
-		for (auto row = 0; row < 4; ++row) {
-			if (ImGui::TableNextColumn()) { // slot 0
-				im::ScopedFont sf(manager.fontMono);
-				ImGui::Checkbox(tmpStrCat("0-", row).c_str(), &ss00);
-			}
-			if (ImGui::TableNextColumn()) { // slot 1
-				im::ScopedFont sf(manager.fontMono);
-				ImGui::Checkbox(tmpStrCat("1-", row).c_str(), &ss10);
-			}
-			if (ImGui::TableNextColumn()) { // slot 2
-				im::ScopedFont sf(manager.fontMono);
-				ImGui::Checkbox(tmpStrCat("2-", row).c_str(), &ss20);
-			}
-			if (ImGui::TableNextColumn()) { // slot 3
-				im::ScopedFont sf(manager.fontMono);
-				ImGui::Checkbox(tmpStrCat("3-", row).c_str(), &ss30);
+		for (auto row = 0; row < 4; ++row) { // subslot
+			for (auto col = 0; col < 4; ++col) { // slot
+				bool slotsubslot = (1 << (row + col * 4)) & sym.slots(symbolManager);
+				if (ImGui::TableNextColumn()) { // slot col#, subslot row#
+					im::ScopedFont sf(manager.fontMono);
+					if (ImGui::Checkbox(tmpStrCat(col, "-", row).c_str(), &slotsubslot)) {
+						int ss = 1 << (row + col * 4);
+						Symbol& symbol = symbolManager.getFiles()[sym.fileIdx].symbols[sym.symbolIdx];
+						symbol.slots ^= ss;
+					}
+				}
 			}
 		}
 	});
 }
 
 template<bool FILTER_FILE>
-static void drawTable(ImGuiManager& manager, const SymbolManager& symbolManager, std::vector<SymbolRef>& symbols, const std::string& file = {})
+static void drawTable(ImGuiManager& manager, SymbolManager& symbolManager, std::vector<SymbolRef>& symbols, const std::string& file = {})
 {
 	assert(FILTER_FILE == !file.empty());
 
@@ -202,10 +196,10 @@ static void drawTable(ImGuiManager& manager, const SymbolManager& symbolManager,
 					im::ScopedFont sf(manager.fontMono);
 					ImGui::Selectable("all slots");
 				} else {
-					zstring_view slots{};
+					std::string slots{};
 					std::string_view sep{};
 					for (auto sl = 0; sl < 4; ++sl) {
-						slots = tmpStrCat(slots, sep, sl);
+						strAppend(slots, sep, sl);
 						sep = "-";
 						if (((sym.slots(symbolManager) >> (sl * 4)) & 0b1111) == 0b1111) {
 							slots = tmpStrCat(slots, sep, "*");
@@ -227,7 +221,7 @@ static void drawTable(ImGuiManager& manager, const SymbolManager& symbolManager,
 				if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
 					ImGui::OpenPopup(symNameMenu);
 				}
-				im::Popup(symNameMenu, [&]{ drawSlots(manager); });
+				im::Popup(symNameMenu, [&]{ drawSlots(manager, sym, symbolManager); });
 			}
 			if (!FILTER_FILE && ImGui::TableNextColumn()) { // file
 				ImGui::TextUnformatted(sym.file(symbolManager));
