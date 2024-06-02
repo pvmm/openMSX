@@ -17,10 +17,10 @@ struct SymbolRef {
 	unsigned fileIdx;
 	unsigned symbolIdx;
 
-	[[nodiscard]] std::string_view file(const SymbolManager& m) const { return m.getFiles()[fileIdx].filename; }
-	[[nodiscard]] std::string_view name(const SymbolManager& m) const { return m.getFiles()[fileIdx].symbols[symbolIdx].name; }
-	[[nodiscard]] uint16_t        value(const SymbolManager& m) const { return m.getFiles()[fileIdx].symbols[symbolIdx].value; }
-	[[nodiscard]] int16_t         slots(const SymbolManager& m) const { return m.getFiles()[fileIdx].symbols[symbolIdx].slots; }
+	[[nodiscard]] std::string_view file(SymbolManager& m) const { return m.getFiles()[fileIdx].filename; }
+	[[nodiscard]] std::string_view name(SymbolManager& m) const { return m.getFiles()[fileIdx].symbols[symbolIdx].name; }
+	[[nodiscard]] uint16_t        value(SymbolManager& m) const { return m.getFiles()[fileIdx].symbols[symbolIdx].value; }
+	[[nodiscard]] int16_t         slots(SymbolManager& m) const { return m.getFiles()[fileIdx].symbols[symbolIdx].slots; }
 };
 
 class ImGuiSymbols final : public ImGuiPart, private SymbolObserver

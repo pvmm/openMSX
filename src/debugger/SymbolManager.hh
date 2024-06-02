@@ -78,7 +78,7 @@ public:
 	void removeFile(std::string_view filename);
 	void removeAllFiles();
 
-	[[nodiscard]] const auto& getFiles() const { return files; }
+	[[nodiscard]] auto& getFiles() { return files; }
 	[[nodiscard]] std::span<Symbol const * const> lookupValue(uint16_t value);
 	[[nodiscard]] std::optional<uint16_t> parseSymbolOrValue(std::string_view s) const;
 
