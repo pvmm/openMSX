@@ -172,7 +172,7 @@ static void drawTable(ImGuiManager& manager, SymbolManager& symbolManager, std::
 		ImGui::TableSetupScrollFreeze(0, 1); // Make top row always visible
 		ImGui::TableSetupColumn("name");
 		ImGui::TableSetupColumn("value", ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_WidthFixed);
-		ImGui::TableSetupColumn("slots");
+		ImGui::TableSetupColumn("slot");
 		if (!FILTER_FILE) {
 			ImGui::TableSetupColumn("file");
 		}
@@ -192,32 +192,8 @@ static void drawTable(ImGuiManager& manager, SymbolManager& symbolManager, std::
 			}
 			if (ImGui::TableNextColumn()) { // slots
 				auto symNameMenu = tmpStrCat("symbol-manager##", sym.name(symbolManager)).c_str();
-				if (sym.slots(symbolManager) == -1) {
-					im::ScopedFont sf(manager.fontMono);
-					ImGui::Selectable("all slots");
-				} else {
-					std::string slots{};
-					std::string_view sep{};
-					for (auto sl = 0; sl < 4; ++sl) {
-						strAppend(slots, sep, sl);
-						sep = "-";
-						if (((sym.slots(symbolManager) >> (sl * 4)) & 0b1111) == 0b1111) {
-							slots = tmpStrCat(slots, sep, "*");
-						} else {
-							for (auto ss = 0; ss < 4; ++ss) {
-								if ((1 << (ss + (sl * 4))) & sym.slots(symbolManager)) {
-									slots = tmpStrCat(slots, sep, ss);
-									sep = "/";
-								}
-							}
-						}
-						sep = ", ";
-					}
-					{
-						im::ScopedFont sf(manager.fontMono);
-						ImGui::Selectable(slots.data());
-					}
-				}
+				im::ScopedFont sf(manager.fontMono);
+				ImGui::Selectable(tmpStrCat(sym.slots(symbolManager)).c_str());
 				if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
 					ImGui::OpenPopup(symNameMenu);
 				}
