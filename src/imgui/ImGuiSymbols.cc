@@ -27,6 +27,9 @@
 
 namespace openmsx {
 
+gl::vec4 symbolColor1{1.0f, 1.0f, 1.0f, 0.8f}; // RGBA
+gl::vec4 symbolColor2{0.5f, 0.5f, 1.0f, 0.8f}; // RGBA
+
 ImGuiSymbols::ImGuiSymbols(ImGuiManager& manager_)
 	: ImGuiPart(manager_)
 	, symbolManager(manager.getReactor().getSymbolManager())
@@ -160,7 +163,8 @@ static void drawTable(ImGuiManager& manager, SymbolManager& symbolManager, std::
 
 			if (ImGui::TableNextColumn()) { // name
 				im::ScopedFont sf(manager.fontMono);
-				ImGui::TextUnformatted(sym.name(symbolManager).data());
+				auto color = sym.segment(symbolManager) ? symbolColor2 : symbolColor1;
+				ImGui::TextColored(color, sym.name(symbolManager).data());
 			}
 			if (ImGui::TableNextColumn()) { // value
 				im::ScopedFont sf(manager.fontMono);
