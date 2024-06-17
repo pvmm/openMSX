@@ -46,6 +46,7 @@ struct SymbolFile
 	[[nodiscard]] static zstring_view toString(Type type);
 	[[nodiscard]] static std::optional<Type> parseType(std::string_view str);
 
+	uint16_t base;
 	std::string filename;
 	std::vector<Symbol> symbols;
 	Type type;
