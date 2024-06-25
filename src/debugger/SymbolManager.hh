@@ -19,11 +19,13 @@ class CommandController;
 
 struct Symbol
 {
-	Symbol(std::string n, uint16_t v, uint16_t s)
-		: name(std::move(n)), value(v), segment(s) {} // clang-15 workaround
+	Symbol(std::string n, uint16_t v, uint16_t s1, uint16_t s2, uint16_t s3)
+		: name(std::move(n)), value(v), slot(s1), subslot(s2), segment(s3) {} // clang-15 workaround
 
 	std::string name;
 	uint16_t value;
+	uint16_t slot;
+	int16_t  subslot;
 	uint16_t segment;
 
 	auto operator<=>(const Symbol&) const = default;
@@ -46,6 +48,8 @@ struct SymbolFile
 	[[nodiscard]] static zstring_view toString(Type type);
 	[[nodiscard]] static std::optional<Type> parseType(std::string_view str);
 
+	uint16_t slot;
+	int16_t  subslot;
 	uint16_t base;
 	std::string filename;
 	std::vector<Symbol> symbols;
@@ -80,6 +84,7 @@ public:
 	void removeAllFiles();
 
 	[[nodiscard]] auto& getFiles() { return files; }
+	[[nodiscard]] SymbolFile* getFile(std::string filename);
 	[[nodiscard]] std::span<Symbol const * const> lookupValue(uint16_t value);
 	[[nodiscard]] std::optional<uint32_t> parseSymbolOrValue(std::string_view s) const;
 

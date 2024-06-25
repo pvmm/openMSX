@@ -99,6 +99,8 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 	SymbolFile result;
 	result.filename = filename;
 	result.type = type;
+	result.slot = 0;
+	result.subslot = 0;
 
 	static constexpr std::string_view whitespace = " \t\r";
 	for (std::string_view fullLine : StringOp::split_view(buffer, '\n')) {
@@ -140,7 +142,7 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 	if (label.ends_with(':')) label.remove_suffix(1);
 	if (label.empty()) return {};
 
-	return Symbol{std::string(label), static_cast<uint16_t>(value), static_cast<uint16_t>(value >> 16)};
+	return Symbol{std::string(label), static_cast<uint16_t>(value), static_cast<uint16_t>(value >> 16), 0, 0};
 }
 
 [[nodiscard]] std::optional<Symbol> SymbolManager::checkLabelAndValue(std::string_view label, std::string_view value)
@@ -200,6 +202,8 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 	SymbolFile result;
 	result.filename = filename;
 	result.type = SymbolFile::Type::VASM;
+	result.slot = 0;
+	result.subslot = 0;
 
 	static constexpr std::string_view whitespace = " \t\r";
 	bool skipLines = true;
@@ -232,6 +236,8 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 	SymbolFile result;
 	result.filename = filename;
 	result.type = SymbolFile::Type::ASMSX;
+	result.slot = 0;
+	result.subslot = 0;
 
 	static constexpr std::string_view whitespace = " \t\r";
 	bool symbolPart = false;
@@ -293,6 +299,8 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 	SymbolFile result;
 	result.filename = filename;
 	result.type = SymbolFile::Type::LINKMAP;
+	result.slot = 0;
+	result.subslot = 0;
 
 	static constexpr std::string_view whitespace = " \t\r";
 	bool symbolPart = false;
@@ -324,7 +332,7 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 			if (it == et) break;
 			auto value = *it++; // this could either be the psect or the value column
 			if (auto val = is4DigitHex(value)) {
-				result.symbols.emplace_back(std::string(label), *val, 0);
+				result.symbols.emplace_back(std::string(label), *val, 0, 0, 0);
 				continue;
 			}
 
@@ -332,7 +340,7 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 			value = *it++; // try again with 3rd column
 			auto val = is4DigitHex(value);
 			if (!val) break; // if this also doesn't work there's something wrong, skip this line
-			result.symbols.emplace_back(std::string(label), *val, 0);
+			result.symbols.emplace_back(std::string(label), *val, 0, 0, 0);
 		}
 	}
 
@@ -451,6 +459,15 @@ std::span<Symbol const * const> SymbolManager::lookupValue(uint16_t value)
 		return *sym;
 	}
 	return {};
+}
+
+SymbolFile* SymbolManager::getFile(std::string filename)
+{
+	if (auto it = ranges::find(files, filename, &SymbolFile::filename); it == files.end()) {
+		return nullptr;
+	} else {
+		return &(*it);
+	}
 }
 
 std::string SymbolManager::getFileFilters()
