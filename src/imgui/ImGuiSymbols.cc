@@ -27,6 +27,7 @@
 
 #include <imgui.h>
 
+#include <sstream>
 #include <cassert>
 
 namespace openmsx {
@@ -50,10 +51,17 @@ void ImGuiSymbols::save(ImGuiTextBuffer& buf)
 		buf.appendf("symbolfile=%s\n", file.filename.c_str());
 		buf.appendf("symbolfiletype=%s\n", SymbolFile::toString(file.type).c_str());
 	}
-	for (const auto& [file, error, type, pos, base] : fileError) {
+	for (const auto& [file, error, type, slot, subslot, index] : fileError) {
+		assert(false);
 		buf.appendf("symbolfile=%s\n", file.c_str());
 		buf.appendf("symbolfiletype=%s\n", SymbolFile::toString(type).c_str());
+		if (subslot) {
+			buf.appendf("slotsubslot=%d-%d\n", slot, *subslot);
+		} else {
+			buf.appendf("slotsubslot=%d\n", slot);
+		}
 	}
+	//assert(false);
 }
 
 void ImGuiSymbols::loadStart()
@@ -70,12 +78,25 @@ void ImGuiSymbols::loadLine(std::string_view name, zstring_view value)
 		fileError.emplace_back(std::string{value}, // filename
 		                       std::string{}, // error
 		                       SymbolFile::Type::AUTO_DETECT, // type
-		                       0, // slot/subslot index
-				       0); // base address index
+		                       0, // slot
+				       std::nullopt, // subslot
+				       0); // index
 	} else if (name == "symbolfiletype") {
 		if (!fileError.empty()) {
 			fileError.back().type =
 				SymbolFile::parseType(value).value_or(SymbolFile::Type::AUTO_DETECT);
+		}
+	} else if (name == "slotsubslot") {
+		if (!fileError.empty()) {
+			std::istringstream ss(value.data());
+			int subslot;
+			char dash;
+
+			ss >> fileError.back().slot;
+			// optional subslot
+			if (ss >> dash && dash == '-' && ss >> subslot) {
+				fileError.back().subslot = subslot;
+			}
 		}
 	}
 }
@@ -106,7 +127,8 @@ void ImGuiSymbols::loadFile(const std::string& filename, SymbolManager::LoadEmpt
 			it->error = e.getMessage(); // overwrite previous error
 			it->type = type;
 		} else {
-			fileError.emplace_back(filename, e.getMessage(), type, it->pos, it->base); // set error
+			//assert(false);
+			fileError.emplace_back(filename, e.getMessage(), type, it->slot, it->subslot, it->index); // set error
 		}
 	}
 }
@@ -139,7 +161,7 @@ static void checkSort(SymbolManager& manager, std::vector<SymbolRef>& symbols)
 void ImGuiSymbols::drawContext(MSXMotherBoard* motherBoard, const SymbolRef& sym)
 {
 	if (ImGui::MenuItem("Set breakpoint")) {
-		std::string cond = strCat("[pc_in_slot ", sym.slot(symbolManager), ' ', sym.subslot(symbolManager), ' ', sym.segment(symbolManager), ']');
+		std::string cond = strCat("[pc_in_slot ", sym.slot(symbolManager), ' ', sym.subslot(symbolManager) ? (*sym.subslot(symbolManager)) : 0, ' ', sym.segment(symbolManager), ']');
 		BreakPoint newBp(sym.value(symbolManager), TclObject("debug break"), TclObject(cond), false);
 		auto& cpuInterface = motherBoard->getCPUInterface();
 		cpuInterface.insertBreakPoint(std::move(newBp));
@@ -211,8 +233,8 @@ void ImGuiSymbols::drawTable(MSXMotherBoard* motherBoard, const std::string& fil
 			}
 			if (ImGui::TableNextColumn()) { // slot
 				im::ScopedFont sf(manager.fontMono);
-				if (sym.subslot(symbolManager) >= 0) {
-					ImGui::TextUnformatted(tmpStrCat(sym.slot(symbolManager), "-", sym.subslot(symbolManager)));
+				if (sym.subslot(symbolManager)) {
+					ImGui::TextUnformatted(tmpStrCat(sym.slot(symbolManager), "-", narrow<int>(*sym.subslot(symbolManager))));
 				} else {
 					ImGui::TextUnformatted(tmpStrCat(sym.slot(symbolManager)));
 				}
@@ -228,14 +250,14 @@ void ImGuiSymbols::drawTable(MSXMotherBoard* motherBoard, const std::string& fil
 	});
 }
 
-static int getSlotIndex(MSXMotherBoard* motherBoard, int slot, int subslot)
+static int toSlotIndex(MSXMotherBoard* motherBoard, int slot, std::optional<int> subslot)
 {
 	auto& cpuInterface = motherBoard->getCPUInterface();
 	int slotIndex = 0;
 	for (int ps = 0; ps < slot; ++ps) {
 		slotIndex += cpuInterface.isExpanded(ps) ? 4 : 1;
 	}
-	return slotIndex + (subslot >= 0 ? subslot : 0);
+	return slotIndex + (subslot ? *subslot : 0);
 }
 
 void ImGuiSymbols::paint(MSXMotherBoard* motherBoard)
@@ -289,27 +311,18 @@ void ImGuiSymbols::paint(MSXMotherBoard* motherBoard)
 						        ImGui::AlignTextToFramePadding();
 
 							// slot
-							ImGui::Combo(tmpStrCat("Slot##", info.filename).data(), &info.pos, slotInfo.c_str(), nSlots);
+							ImGui::Combo(tmpStrCat("Slot##", info.filename).data(), &info.index, slotInfo.c_str(), nSlots);
 							if (fileIdx.has_value()) {
 								auto& file = symbolManager.getFiles()[*fileIdx];
 								// detect slot/subslot changes
-								if (slotSubslots[info.pos].first != file.slot || slotSubslots[info.pos].second != file.subslot) {
-									file.slot = slotSubslots[info.pos].first;
-									file.subslot = slotSubslots[info.pos].second;
+								if (slotSubslots[info.index].first != file.slot || slotSubslots[info.index].second != file.subslot) {
+									file.slot = slotSubslots[info.index].first;
+									file.subslot = slotSubslots[info.index].second;
 									for (auto& symbol: file.getSymbols()) {
-										symbol.slot = slotSubslots[info.pos].first;
-										symbol.subslot = slotSubslots[info.pos].second;
+										symbol.slot = slotSubslots[info.index].first;
+										symbol.subslot = slotSubslots[info.index].second;
 									}
 								}
-							}
-							ImGui::SameLine();
-
-							// base address
-							ImGui::SetNextItemWidth(ImGui::CalcTextSize("0x0000").x + extra);
-							ImGui::Combo("Base address", &info.base, "0x0000\0000x2000\000", 2);
-							if (fileIdx.has_value()) {
-								auto& file = symbolManager.getFiles()[*fileIdx];
-								file.base = info.base ? 0x2000 : 0x0000;
 							}
 							ImGui::SameLine();
 
@@ -331,7 +344,7 @@ void ImGuiSymbols::paint(MSXMotherBoard* motherBoard)
 			};
 			// make copy because cache may get dropped
 			auto infos = to_vector(view::transform(symbolManager.getFiles(), [&](const auto& file) {
-				return FileInfo{file.filename, std::string{}, file.type, getSlotIndex(motherBoard, file.slot, file.subslot), file.base ? 1 : 0};
+				return FileInfo{file.filename, std::string{}, file.type, file.slot, file.subslot, toSlotIndex(motherBoard, file.slot, file.subslot)};
 			}));
 			append(infos, fileError);
 			for (auto& info : infos) {
@@ -342,7 +355,7 @@ void ImGuiSymbols::paint(MSXMotherBoard* motherBoard)
 		im::TreeNode("All symbols", [&]{
 			if (ImGui::Button("Reload all")) {
 				auto tmp = to_vector(view::transform(symbolManager.getFiles(), [&](const auto& file) {
-					return FileInfo{file.filename, std::string{}, file.type, getSlotIndex(motherBoard, file.slot, file.subslot), file.base ? 1 : 0};
+					return FileInfo{file.filename, std::string{}, file.type, file.slot, file.subslot, toSlotIndex(motherBoard, file.slot, file.subslot)};
 				}));
 				append(tmp, std::move(fileError));
 				fileError.clear();
@@ -368,6 +381,7 @@ void ImGuiSymbols::notifySymbolsChanged()
 			//symbols.emplace_back(narrow<unsigned>(fileIdx),
 			//                     narrow<unsigned>(symbolIdx));
 			// clang workaround
+			//assert(false);
 			symbols.push_back(SymbolRef{narrow<unsigned>(fileIdx),
 			                            narrow<unsigned>(symbolIdx)});
 		}

@@ -19,13 +19,13 @@ class CommandController;
 
 struct Symbol
 {
-	Symbol(std::string n, uint16_t v, uint16_t s1, uint16_t s2, uint16_t s3)
+	Symbol(std::string n, uint16_t v, uint16_t s1, std::optional<uint16_t> s2, uint16_t s3)
 		: name(std::move(n)), value(v), slot(s1), subslot(s2), segment(s3) {} // clang-15 workaround
 
 	std::string name;
 	uint16_t value;
 	uint16_t slot;
-	int16_t  subslot;
+	std::optional<int16_t> subslot;
 	uint16_t segment;
 
 	auto operator<=>(const Symbol&) const = default;
@@ -50,8 +50,7 @@ struct SymbolFile
 	[[nodiscard]] auto& getSymbols() { return symbols; }
 
 	uint16_t slot;
-	int16_t  subslot;
-	uint16_t base;
+	std::optional<int16_t> subslot;
 	std::string filename;
 	std::vector<Symbol> symbols;
 	Type type;

@@ -100,8 +100,7 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 	result.filename = filename;
 	result.type = type;
 	result.slot = 0;
-	result.subslot = 0;
-	result.base = 0;
+	result.subslot = std::nullopt;
 
 	static constexpr std::string_view whitespace = " \t\r";
 	for (std::string_view fullLine : StringOp::split_view(buffer, '\n')) {
@@ -204,8 +203,7 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 	result.filename = filename;
 	result.type = SymbolFile::Type::VASM;
 	result.slot = 0;
-	result.subslot = 0;
-	result.base = 0;
+	result.subslot = std::nullopt;
 
 	static constexpr std::string_view whitespace = " \t\r";
 	bool skipLines = true;
@@ -239,8 +237,7 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 	result.filename = filename;
 	result.type = SymbolFile::Type::ASMSX;
 	result.slot = 0;
-	result.subslot = 0;
-	result.base = 0;
+	result.subslot = std::nullopt;
 
 	static constexpr std::string_view whitespace = " \t\r";
 	bool symbolPart = false;
@@ -303,8 +300,7 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 	result.filename = filename;
 	result.type = SymbolFile::Type::LINKMAP;
 	result.slot = 0;
-	result.subslot = 0;
-	result.base = 0;
+	result.subslot = std::nullopt;
 
 	static constexpr std::string_view whitespace = " \t\r";
 	bool symbolPart = false;

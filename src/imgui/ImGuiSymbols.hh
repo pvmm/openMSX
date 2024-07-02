@@ -21,7 +21,7 @@ struct SymbolRef {
 	[[nodiscard]] std::string_view name(SymbolManager& m) const { return m.getFiles()[fileIdx].symbols[symbolIdx].name; }
 	[[nodiscard]] uint16_t        value(SymbolManager& m) const { return m.getFiles()[fileIdx].symbols[symbolIdx].value; }
 	[[nodiscard]] int16_t          slot(SymbolManager& m) const { return m.getFiles()[fileIdx].symbols[symbolIdx].slot; }
-	[[nodiscard]] int16_t       subslot(SymbolManager& m) const { return m.getFiles()[fileIdx].symbols[symbolIdx].subslot; }
+	[[nodiscard]] std::optional<int16_t> subslot(SymbolManager& m) const { return m.getFiles()[fileIdx].symbols[symbolIdx].subslot; }
 	[[nodiscard]] int16_t       segment(SymbolManager& m) const { return m.getFiles()[fileIdx].symbols[symbolIdx].segment; }
 };
 
@@ -29,14 +29,15 @@ class ImGuiSymbols final : public ImGuiPart, private SymbolObserver
 {
 public:
 	struct FileInfo {
-		FileInfo(std::string f, std::string e, SymbolFile::Type t, int p, int b)
-			: filename(std::move(f)), error(std::move(e)), type(t), pos(p), base(b) {} // clang-15 workaround
+		FileInfo(std::string f, std::string e, SymbolFile::Type t, int s, std::optional<int> ss, int i)
+			: filename(std::move(f)), error(std::move(e)), type(t), slot(s), subslot(ss), index(i) {} // clang-15 workaround
 
 		std::string filename;
 		std::string error;
 		SymbolFile::Type type;
-		int pos;  // slot/subslot index
-		int base; // base address index
+		int slot;
+		std::optional<int> subslot;
+		int index; // slot-subslot index
 	};
 
 	explicit ImGuiSymbols(ImGuiManager& manager);
