@@ -17,25 +17,25 @@ struct SymbolRef {
 	unsigned fileIdx;
 	unsigned symbolIdx;
 
-	[[nodiscard]] std::string_view file(SymbolManager& m) const { return m.getFiles()[fileIdx].filename; }
-	[[nodiscard]] std::string_view name(SymbolManager& m) const { return m.getFiles()[fileIdx].symbols[symbolIdx].name; }
-	[[nodiscard]] uint16_t        value(SymbolManager& m) const { return m.getFiles()[fileIdx].symbols[symbolIdx].value; }
-	[[nodiscard]] int16_t          slot(SymbolManager& m) const { return m.getFiles()[fileIdx].symbols[symbolIdx].slot; }
-	[[nodiscard]] std::optional<int16_t> subslot(SymbolManager& m) const { return m.getFiles()[fileIdx].symbols[symbolIdx].subslot; }
-	[[nodiscard]] int16_t       segment(SymbolManager& m) const { return m.getFiles()[fileIdx].symbols[symbolIdx].segment; }
+	[[nodiscard]] std::string_view           file(SymbolManager& m) const { return m.getFiles()[fileIdx].filename; }
+	[[nodiscard]] std::string_view           name(SymbolManager& m) const { return m.getFiles()[fileIdx].symbols[symbolIdx].name; }
+	[[nodiscard]] uint16_t                  value(SymbolManager& m) const { return m.getFiles()[fileIdx].symbols[symbolIdx].value; }
+	[[nodiscard]] std::optional<uint16_t>    slot(SymbolManager& m) const { return m.getFiles()[fileIdx].symbols[symbolIdx].slot; }
+	[[nodiscard]] std::optional<uint16_t> subslot(SymbolManager& m) const { return m.getFiles()[fileIdx].symbols[symbolIdx].subslot; }
+	[[nodiscard]] std::optional<uint16_t> segment(SymbolManager& m) const { return m.getFiles()[fileIdx].symbols[symbolIdx].segment; }
 };
 
 class ImGuiSymbols final : public ImGuiPart, private SymbolObserver
 {
 public:
 	struct FileInfo {
-		FileInfo(std::string f, std::string e, SymbolFile::Type t, int s, std::optional<int> ss, int i)
+		FileInfo(std::string f, std::string e, SymbolFile::Type t, std::optional<int> s, std::optional<int> ss, int i)
 			: filename(std::move(f)), error(std::move(e)), type(t), slot(s), subslot(ss), index(i) {} // clang-15 workaround
 
 		std::string filename;
 		std::string error;
 		SymbolFile::Type type;
-		int slot;
+		std::optional<int> slot;
 		std::optional<int> subslot;
 		int index; // slot-subslot index
 	};

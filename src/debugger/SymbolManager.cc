@@ -99,7 +99,7 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 	SymbolFile result;
 	result.filename = filename;
 	result.type = type;
-	result.slot = 0;
+	result.slot = std::nullopt;
 	result.subslot = std::nullopt;
 
 	static constexpr std::string_view whitespace = " \t\r";
@@ -142,7 +142,7 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 	if (label.ends_with(':')) label.remove_suffix(1);
 	if (label.empty()) return {};
 
-	return Symbol{std::string(label), static_cast<uint16_t>(value), 0, 0, static_cast<uint16_t>(value >> 16)};
+	return Symbol{std::string(label), static_cast<uint16_t>(value), {}, {}, static_cast<uint16_t>(value >> 16)};
 }
 
 [[nodiscard]] std::optional<Symbol> SymbolManager::checkLabelAndValue(std::string_view label, std::string_view value)
@@ -202,7 +202,7 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 	SymbolFile result;
 	result.filename = filename;
 	result.type = SymbolFile::Type::VASM;
-	result.slot = 0;
+	result.slot = std::nullopt;
 	result.subslot = std::nullopt;
 
 	static constexpr std::string_view whitespace = " \t\r";
@@ -236,7 +236,7 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 	SymbolFile result;
 	result.filename = filename;
 	result.type = SymbolFile::Type::ASMSX;
-	result.slot = 0;
+	result.slot = std::nullopt;
 	result.subslot = std::nullopt;
 
 	static constexpr std::string_view whitespace = " \t\r";
@@ -299,7 +299,7 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 	SymbolFile result;
 	result.filename = filename;
 	result.type = SymbolFile::Type::LINKMAP;
-	result.slot = 0;
+	result.slot = std::nullopt;
 	result.subslot = std::nullopt;
 
 	static constexpr std::string_view whitespace = " \t\r";
