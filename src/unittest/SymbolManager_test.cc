@@ -64,20 +64,23 @@ TEST_CASE("SymbolManager: parseValue")
 		CHECK(SymbolManager::parseValue("0x10000") == std::nullopt);
 		CHECK(SymbolManager::parseValue("65536") == std::nullopt);
 		CHECK(SymbolManager::parseValue("%11110000111100001") == std::nullopt);
+		CHECK(SymbolManager::parseValue32("0x100000000") == std::nullopt);
+		CHECK(SymbolManager::parseValue32("4294967296") == std::nullopt);
+		CHECK(SymbolManager::parseValue32("%111100001111000011110000111100001") == std::nullopt);
 	}
 }
 
 TEST_CASE("SymbolManager: checkLabel")
 {
-	CHECK(SymbolManager::checkLabel("foo", 123) == Symbol("foo", 123, 0));
-	CHECK(SymbolManager::checkLabel("bar:", 234) == Symbol("bar", 234, 0));
+	CHECK(SymbolManager::checkLabel("foo", 123) == Symbol("foo", 123, {}, 0));
+	CHECK(SymbolManager::checkLabel("bar:", 234) == Symbol("bar", 234, {}, 0));
 	CHECK(SymbolManager::checkLabel("", 345) == std::nullopt);
 	CHECK(SymbolManager::checkLabel(":", 456) == std::nullopt);
 }
 
 TEST_CASE("SymbolManager: checkLabelAndValue")
 {
-	CHECK(SymbolManager::checkLabelAndValue("foo", "123") == Symbol("foo", 123, 0));
+	CHECK(SymbolManager::checkLabelAndValue("foo", "123") == Symbol("foo", 123, {}, 0));
 	CHECK(SymbolManager::checkLabelAndValue("", "123") == std::nullopt);
 	CHECK(SymbolManager::checkLabelAndValue("foo", "bla") == std::nullopt);
 }
@@ -107,7 +110,7 @@ TEST_CASE("SymbolManager: detectType")
 TEST_CASE("SymbolManager: loadLines")
 {
 	auto dummyParser = [](std::span<std::string_view> tokens) -> std::optional<Symbol> {
-		if (tokens.size() == 1) return Symbol{std::string(tokens[0]), 123, 0};
+		if (tokens.size() == 1) return Symbol{std::string(tokens[0]), 123, 0, 0};
 		return {};
 	};
 
