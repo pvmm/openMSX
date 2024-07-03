@@ -52,11 +52,13 @@ public:
 
 public:
 	bool show = false;
+
+private:
 	bool showSlot = false;
 	bool showSeg = false;
 
 private:
-	void loadFile(const std::string& filename, SymbolManager::LoadEmpty loadEmpty, SymbolFile::Type type);
+	void loadFile(const std::string& filename, SymbolManager::LoadEmpty loadEmpty, SymbolFile::Type type, std::optional<uint16_t> slot = {}, std::optional<uint16_t> subslot = {});
 
 	template<bool FILTER_FILE>
 	void drawTable(MSXMotherBoard* motherBoard, const std::string& file = {});

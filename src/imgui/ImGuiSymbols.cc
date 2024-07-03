@@ -50,9 +50,13 @@ void ImGuiSymbols::save(ImGuiTextBuffer& buf)
 	for (const auto& file : symbolManager.getFiles()) {
 		buf.appendf("symbolfile=%s\n", file.filename.c_str());
 		buf.appendf("symbolfiletype=%s\n", SymbolFile::toString(file.type).c_str());
+		if (file.slot && file.subslot) {
+			buf.appendf("slotsubslot=%d-%d\n", *file.slot, *file.subslot);
+		} else if (file.slot) {
+			buf.appendf("slotsubslot=%d\n", *file.slot);
+		}
 	}
 	for (const auto& [file, error, type, slot, subslot, index] : fileError) {
-		assert(false);
 		buf.appendf("symbolfile=%s\n", file.c_str());
 		buf.appendf("symbolfiletype=%s\n", SymbolFile::toString(type).c_str());
 		if (slot && subslot) {
@@ -108,16 +112,16 @@ void ImGuiSymbols::loadEnd()
 	std::vector<FileInfo> tmp;
 	std::swap(tmp, fileError);
 	for (const auto& info : tmp) {
-		loadFile(info.filename, SymbolManager::LoadEmpty::ALLOWED, info.type);
+		loadFile(info.filename, SymbolManager::LoadEmpty::ALLOWED, info.type, info.slot, info.subslot);
 	}
 }
 
-void ImGuiSymbols::loadFile(const std::string& filename, SymbolManager::LoadEmpty loadEmpty, SymbolFile::Type type)
+void ImGuiSymbols::loadFile(const std::string& filename, SymbolManager::LoadEmpty loadEmpty, SymbolFile::Type type, std::optional<uint16_t> slot, std::optional<uint16_t> subslot)
 {
 	auto& cliComm = manager.getCliComm();
 	auto it = ranges::find(fileError, filename, &FileInfo::filename);
 	try {
-		if (!symbolManager.reloadFile(filename, loadEmpty, type)) {
+		if (!symbolManager.reloadFile(filename, loadEmpty, type, slot, subslot)) {
 			cliComm.printWarning("Symbol file \"", filename,
 			                     "\" doesn't contain any symbols");
 		}
@@ -305,7 +309,7 @@ void ImGuiSymbols::paint(MSXMotherBoard* motherBoard)
 							if (fileIdx.has_value()) {
 								auto& file = symbolManager.getFiles()[*fileIdx];
 								// detect slot/subslot changes
-								if (!file.slot || file.slot != slotSubslots[info.index].first || (file.subslot && file.subslot != slotSubslots[info.index].second)) {
+								if (file.slot != slotSubslots[info.index].first || file.subslot != slotSubslots[info.index].second) {
 									file.slot = slotSubslots[info.index].first;
 									file.subslot = slotSubslots[info.index].second;
 									for (auto& symbol: file.getSymbols()) {
@@ -317,7 +321,7 @@ void ImGuiSymbols::paint(MSXMotherBoard* motherBoard)
 							ImGui::SameLine();
 
 							if (ImGui::Button("Reload")) {
-								loadFile(info.filename, SymbolManager::LoadEmpty::NOT_ALLOWED, info.type);
+								loadFile(info.filename, SymbolManager::LoadEmpty::NOT_ALLOWED, info.type, info.slot, info.subslot);
 							}
 							ImGui::SameLine();
 							if (ImGui::Button("Remove")) {
@@ -350,7 +354,7 @@ void ImGuiSymbols::paint(MSXMotherBoard* motherBoard)
 				append(tmp, std::move(fileError));
 				fileError.clear();
 				for (const auto& info : tmp) {
-					loadFile(info.filename, SymbolManager::LoadEmpty::NOT_ALLOWED, info.type);
+					loadFile(info.filename, SymbolManager::LoadEmpty::NOT_ALLOWED, info.type, info.slot, info.subslot);
 				}
 			}
 			ImGui::SameLine();

@@ -347,7 +347,7 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 	return result;
 }
 
-[[nodiscard]] SymbolFile SymbolManager::loadSymbolFile(const std::string& filename, SymbolFile::Type type)
+[[nodiscard]] SymbolFile SymbolManager::loadSymbolFile(const std::string& filename, SymbolFile::Type type, std::optional<uint16_t> slot, std::optional<uint16_t> subslot)
 {
 	File file(filename);
 	auto buf = file.mmap();
@@ -359,21 +359,35 @@ SymbolManager::SymbolManager(CommandController& commandController_)
 	}
 	assert(type != AUTO_DETECT);
 
-	switch (type) {
-		case ASMSX:
-			return loadASMSX(filename, buffer);
-		case GENERIC:
-			return loadGeneric(filename, buffer);
-		case HTC:
-			return loadHTC(filename, buffer);
-		case LINKMAP:
-			return loadLinkMap(filename, buffer);
-		case NOICE:
-			return loadNoICE(filename, buffer);
-		case VASM:
-			return loadVASM(filename, buffer);
-		default: UNREACHABLE;
+	auto loadFile = [&](const std::string& filename, std::string_view buffer, SymbolFile::Type type) {
+		switch (type) {
+			case ASMSX:
+				return loadASMSX(filename, buffer);
+			case GENERIC:
+				return loadGeneric(filename, buffer);
+			case HTC:
+				return loadHTC(filename, buffer);
+			case LINKMAP:
+				return loadLinkMap(filename, buffer);
+			case NOICE:
+				return loadNoICE(filename, buffer);
+			case VASM:
+				return loadVASM(filename, buffer);
+			default: UNREACHABLE;
+		}
+	};
+
+	auto symbolFile = loadFile(filename, buffer, type);
+
+	// Update slot and subslot info for every file and symbol
+	symbolFile.slot = slot;
+	symbolFile.subslot = subslot;
+	for (auto& symbol: symbolFile.getSymbols()) {
+		symbol.slot = slot;
+		symbol.subslot = subslot;
 	}
+
+	return symbolFile;
 }
 
 void SymbolManager::refresh()
@@ -394,9 +408,9 @@ void SymbolManager::refresh()
 	if (observer) observer->notifySymbolsChanged();
 }
 
-bool SymbolManager::reloadFile(const std::string& filename, LoadEmpty loadEmpty, SymbolFile::Type type)
+bool SymbolManager::reloadFile(const std::string& filename, LoadEmpty loadEmpty, SymbolFile::Type type, std::optional<uint16_t> slot, std::optional<uint16_t> subslot)
 {
-	auto file = loadSymbolFile(filename, type); // might throw
+	auto file = loadSymbolFile(filename, type, slot, subslot); // might throw
 	if (file.symbols.empty() && loadEmpty == LoadEmpty::NOT_ALLOWED) return false;
 
 	if (auto it = ranges::find(files, filename, &SymbolFile::filename);
