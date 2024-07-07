@@ -191,12 +191,12 @@ void ImGuiSymbols::drawTable(MSXMotherBoard* motherBoard, const std::string& fil
 	            (FILTER_FILE ? ImGuiTableFlags_ScrollY : 0);
 	im::Table(file.c_str(), (FILTER_FILE ? 4 : 5), flags, {0, 100}, [&]{
 		ImGui::TableSetupScrollFreeze(0, 1); // Make top row always visible
-		ImGui::TableSetupColumn("name");
-		ImGui::TableSetupColumn("value", ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_WidthFixed);
+		ImGui::TableSetupColumn("name", ImGuiTableColumnFlags_NoHide);
+		ImGui::TableSetupColumn("value", ImGuiTableColumnFlags_NoHide | ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_WidthFixed);
 		ImGui::TableSetupColumn("slot", ImGuiTableColumnFlags_DefaultHide);
 		ImGui::TableSetupColumn("segment", ImGuiTableColumnFlags_DefaultHide);
 		if (!FILTER_FILE) {
-			ImGui::TableSetupColumn("file");
+			ImGui::TableSetupColumn("file", ImGuiTableColumnFlags_NoHide);
 		}
 		ImGui::TableHeadersRow();
 		checkSort(symbolManager, symbols);
