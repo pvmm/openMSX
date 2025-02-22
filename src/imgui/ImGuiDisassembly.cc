@@ -329,13 +329,19 @@ void ImGuiDisassembly::paint(MSXMotherBoard* motherBoard)
 						auto len = disassemble(cpuInterface, addr, pc, time,
 							opcodes, mnemonic, mnemonicAddr, mnemonicLabels);
 
+						bool leftClick = false;
 						if (ImGui::TableNextColumn()) { // addr
 							bool focusScrollToAddress = false;
 							bool focusRunToAddress = false;
 
+							if (ImGui::IsItemClicked(ImGuiMouseButton_Left)) {
+								selectAddr = addr;
+								std::cout << "CLICK!\n";
+							}
+
 							// do the full-row-selectable stuff in a column that cannot be hidden
 							auto pos = ImGui::GetCursorPos();
-							ImGui::Selectable("##row", false,
+							ImGui::Selectable("##row", selectedAddr == addr,
 									ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap);
 							using enum Shortcuts::ID;
 							auto& shortcuts = manager.getShortcuts();
@@ -500,6 +506,7 @@ void ImGuiDisassembly::paint(MSXMotherBoard* motherBoard)
 								}
 							}
 						}
+						//if (ImGui::IsItemActive()) selectedAddress = addr16; //HERE!
 						addr16 += len;
 					});
 				}

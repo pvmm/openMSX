@@ -376,7 +376,7 @@ void ImGuiBreakPoints::drawRow(MSXCPUInterface& cpuInterface, int row, Item& ite
 
 	if (ImGui::TableNextColumn()) { // enable
 		auto pos = ImGui::GetCursorPos();
-		if (ImGui::Selectable("##selection", selectedRow == row,
+		if (ImGui::Selectable("##selection", selectedRow == row, //HERE!
 				ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap,
 				{0.0f, rowHeight})) {
 			selectedRow = row;
@@ -388,7 +388,7 @@ void ImGuiBreakPoints::drawRow(MSXCPUInterface& cpuInterface, int row, Item& ite
 			auto sc = getScopedChange(item, cpuInterface); (void)sc;
 			setEnabled(item, enabled);
 		}
-		if (ImGui::IsItemActive()) selectedRow = row;
+		if (ImGui::IsItemActive()) selectedRow = row; //HERE!
 	}
 	if (ImGui::TableNextColumn()) { // type
 		if constexpr (isWatchPoint) {
