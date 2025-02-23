@@ -254,7 +254,9 @@ void ImGuiDisassembly::paint(MSXMotherBoard* motherBoard)
 			std::optional<unsigned> minAddr;
 			std::optional<unsigned> maxAddr;
 			bool toClipboard = false;
+			bool moved = false;
 			while (clipper.Step()) {
+				unsigned int oldlen;
 				// Note this while loop can iterate multiple times, though we mitigate this by passing the
 				// row height to the ImGuiListClipper constructor. Another reason is because we called
 				// clipper.IncludeItemsByIndex(), but that only happens when 'gotoTarget' is set.
@@ -329,20 +331,27 @@ void ImGuiDisassembly::paint(MSXMotherBoard* motherBoard)
 						auto len = disassemble(cpuInterface, addr, pc, time,
 							opcodes, mnemonic, mnemonicAddr, mnemonicLabels);
 
-						bool leftClick = false;
 						if (ImGui::TableNextColumn()) { // addr
 							bool focusScrollToAddress = false;
 							bool focusRunToAddress = false;
-
-							if (ImGui::IsItemClicked(ImGuiMouseButton_Left)) {
-								selectAddr = addr;
-								std::cout << "CLICK!\n";
+							bool up = ImGui::Shortcut(ImGuiKey_UpArrow);
+							bool down = ImGui::Shortcut(ImGuiKey_DownArrow);
+							auto itemHeight = ImGui::GetTextLineHeightWithSpacing();
+							if (up && selectedAddr == addr) {
+								selectedAddr -= oldlen;
+								ImGui::SetScrollY(ImGui::GetScrollY() - itemHeight);
+							} else if (down && !moved && selectedAddr == addr) {
+								moved = true;
+								selectedAddr += len;
+								ImGui::SetScrollY(ImGui::GetScrollY() + itemHeight);
 							}
-
 							// do the full-row-selectable stuff in a column that cannot be hidden
 							auto pos = ImGui::GetCursorPos();
 							ImGui::Selectable("##row", selectedAddr == addr,
 									ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap);
+							if (ImGui::IsItemClicked(ImGuiMouseButton_Left)) {
+								selectedAddr = addr;
+							}
 							using enum Shortcuts::ID;
 							auto& shortcuts = manager.getShortcuts();
 							if (shortcuts.checkShortcut(DISASM_GOTO_ADDR)) {
@@ -506,8 +515,8 @@ void ImGuiDisassembly::paint(MSXMotherBoard* motherBoard)
 								}
 							}
 						}
-						//if (ImGui::IsItemActive()) selectedAddress = addr16; //HERE!
 						addr16 += len;
+						oldlen = len;
 					});
 				}
 			}
