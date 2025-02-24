@@ -217,8 +217,14 @@ void ImGuiDisassembly::paint(MSXMotherBoard* motherBoard)
 
 		auto pc = regs.getPC();
 		auto& reactor = manager.getReactor();
-		if (followPC && (!MSXCPUInterface::isBreaked() && !reactor.getGlobalSettings().getPauseSetting().getBoolean())) {
+		auto running = !MSXCPUInterface::isBreaked() && !reactor.getGlobalSettings().getPauseSetting().getBoolean();
+		if (followPC && running) {
 			gotoTarget = pc;
+		}
+		if (!running && !followPC && lastSelectedAddr) {
+			gotoTarget = lastSelectedAddr;
+		} else if (!running && !lastSelectedAddr) {
+			lastSelectedAddr = pc;
 		}
 
 		auto widthOpcode = ImGui::CalcTextSize("12 34 56 78"sv).x;
@@ -254,14 +260,17 @@ void ImGuiDisassembly::paint(MSXMotherBoard* motherBoard)
 			std::optional<unsigned> minAddr;
 			std::optional<unsigned> maxAddr;
 			bool toClipboard = false;
-			bool moved = false;
+			bool movedOnce = false;
+			bool up = ImGui::Shortcut(ImGuiKey_UpArrow, ImGuiInputFlags_Repeat);
+			bool down = ImGui::Shortcut(ImGuiKey_DownArrow, ImGuiInputFlags_Repeat);
+
 			while (clipper.Step()) {
-				unsigned int oldlen;
 				// Note this while loop can iterate multiple times, though we mitigate this by passing the
 				// row height to the ImGuiListClipper constructor. Another reason is because we called
 				// clipper.IncludeItemsByIndex(), but that only happens when 'gotoTarget' is set.
 				// Because of this it's acceptable to just record the min and max address in the for loop below.
 				auto addr16 = instructionBoundary(cpuInterface, narrow<uint16_t>(clipper.DisplayStart), time);
+				unsigned int oldlen;
 				for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; ++row) {
 					unsigned addr = addr16;
 					minAddr = std::min(addr, minAddr.value_or(std::numeric_limits<unsigned>::max()));
@@ -334,23 +343,25 @@ void ImGuiDisassembly::paint(MSXMotherBoard* motherBoard)
 						if (ImGui::TableNextColumn()) { // addr
 							bool focusScrollToAddress = false;
 							bool focusRunToAddress = false;
-							bool up = ImGui::Shortcut(ImGuiKey_UpArrow);
-							bool down = ImGui::Shortcut(ImGuiKey_DownArrow);
 							auto itemHeight = ImGui::GetTextLineHeightWithSpacing();
-							if (up && selectedAddr == addr) {
-								selectedAddr -= oldlen;
-								ImGui::SetScrollY(ImGui::GetScrollY() - itemHeight);
-							} else if (down && !moved && selectedAddr == addr) {
-								moved = true;
-								selectedAddr += len;
-								ImGui::SetScrollY(ImGui::GetScrollY() + itemHeight);
+
+							if (!running && lastSelectedAddr && lastSelectedAddr == addr) {
+								if (up) {
+									lastSelectedAddr = addr - oldlen;
+									ImGui::SetScrollY(ImGui::GetScrollY() - itemHeight);
+								} else if (!movedOnce && down) {
+									movedOnce = true;
+									lastSelectedAddr = addr + len;
+									ImGui::SetScrollY(ImGui::GetScrollY() + itemHeight);
+								}
 							}
+
 							// do the full-row-selectable stuff in a column that cannot be hidden
 							auto pos = ImGui::GetCursorPos();
-							ImGui::Selectable("##row", selectedAddr == addr,
+							ImGui::Selectable("##row", lastSelectedAddr && lastSelectedAddr == addr && lastSelectedAddr != pc,
 									ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap);
 							if (ImGui::IsItemClicked(ImGuiMouseButton_Left)) {
-								selectedAddr = addr;
+								lastSelectedAddr = addr;
 							}
 							using enum Shortcuts::ID;
 							auto& shortcuts = manager.getShortcuts();

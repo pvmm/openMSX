@@ -55,7 +55,7 @@ private:
 	std::string title;
 	size_t cycleLabelsCounter = 0;
 
-	unsigned int selectedAddr = 0;
+	std::optional<unsigned int> lastSelectedAddr = {};
 	std::string gotoAddr;
 	std::string runToAddr;
 	std::optional<unsigned> gotoTarget;
