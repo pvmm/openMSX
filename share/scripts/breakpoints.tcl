@@ -2,16 +2,20 @@
 
 namespace eval breakpoints {
 
+proc fix_filename {filename} {
+	return [expr {[string match *.breakpoints $filename] ? $filename : "$filename.breakpoints"}]
+}
+
 proc save {type filename} {
 	set all [dict values [debug $type list]]
-	set fh [open $filename "w"]
+	set fh [open [fix_filename $filename] "w"]
 	puts $fh [join [dict values [debug $type list]] \n]
 	close $fh
 }
 
 proc load {type filename} {
 	set current_bps [dict values [debug $type list]]
-	set fh [open $filename "r"]
+	set fh [open [fix_filename $filename] "r"]
 	# compare and create breakpoints if not found
 	foreach bp [split [read -nonewline $fh] \n] {
 		if {$bp in $current_bps} continue
