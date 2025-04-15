@@ -105,6 +105,7 @@ namespace openmsx::FileOperations {
 	 * @result The file portion
 	 */
 	[[nodiscard]] std::string_view getFilename(std::string_view path);
+	[[nodiscard]] zstring_view getFilename(zstring_view path);
 
 	/**
 	 * Returns the directory portion of a path.

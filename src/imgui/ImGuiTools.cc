@@ -305,7 +305,7 @@ void ImGuiTools::paintRecord()
 {
 	bool recording = manager.getReactor().getRecorder().isRecording();
 
-	auto title = recording ? strCat("Recording to ", FileOperations::getFilename(getRecordFilename()))
+	auto title = recording ? strCat("Recording to ", FileOperations::getFilename(std::string_view(getRecordFilename())))
 	                       : std::string("Capture Audio/Video");
 	im::Window(tmpStrCat(title, "###A/V").c_str(), &showRecord, [&]{
 		im::Disabled(recording, [&]{

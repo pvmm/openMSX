@@ -233,7 +233,7 @@ unsigned SCSILS120::inquiry()
 	}
 
 	if (length > 36) {
-		std::string filename(FileOperations::getFilename(file.getURL()));
+		std::string filename(FileOperations::getFilename(std::string_view(file.getURL())));
 		filename.resize(20, ' ');
 		std::ranges::copy(filename, &buffer[36]);
 	}

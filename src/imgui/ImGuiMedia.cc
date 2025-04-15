@@ -339,7 +339,7 @@ std::string ImGuiMedia::displayNameForRom(const std::string& filename, bool comp
 			}
 		}
 	}
-	return compact ? std::string(FileOperations::getFilename(filename))
+	return compact ? std::string(FileOperations::getFilename(std::string_view(filename)))
 	               : filename;
 }
 

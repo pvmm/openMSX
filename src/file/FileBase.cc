@@ -55,7 +55,7 @@ std::string FileBase::getLocalReference()
 std::string_view FileBase::getOriginalName()
 {
 	// default implementation just returns filename portion of URL
-	return FileOperations::getFilename(getURL());
+	return FileOperations::getFilename(std::string_view(getURL()));
 }
 
 } // namespace openmsx

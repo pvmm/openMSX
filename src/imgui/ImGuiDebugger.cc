@@ -258,7 +258,7 @@ void ImGuiDebugger::showMenu(MSXMotherBoard* motherBoard)
 				std::optional<std::string> selectedFile;
 				im::ListBox("##select-bp", [&]{
 					for (const auto& name : names) {
-						auto displayName = FileOperations::getFilename(name.c_str());
+						auto displayName = FileOperations::getFilename(zstring_view(name));
 						if (ImGui::Selectable(displayName.data())) {
 							selectedFile = name;
 						}
@@ -289,6 +289,7 @@ void ImGuiDebugger::showMenu(MSXMotherBoard* motherBoard)
 				ImGui::TextUnformatted("Select breakpoint file"sv);
 				auto names = getBreakpointFiles();
 				if (auto selectedFile = listFiles(names)) {
+					std::cout << "selectedFile: [" << *selectedFile << "]\n";
 					breakpointFile = *selectedFile;
 					manager.tclHelper(makeTclList("load_breakpoints", breakpointFile));
 					ImGui::CloseCurrentPopup();

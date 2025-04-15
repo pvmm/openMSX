@@ -29,7 +29,7 @@ public:
 	constexpr zstring_view()
 		: dat(nullptr), siz(0) {}
 	constexpr zstring_view(const char* s)
-		: dat(s), siz(std::char_traits<char>::length(s)) {}
+		: dat(s), siz(std::char_traits<char>::length(s)) {} // std::cout << "YYY |" << ((void*)s) << "\n"; }
 	constexpr zstring_view(const char* s, size_t n)
 		: dat(s), siz(n) { assert(s[n] == '\0'); }
 	constexpr zstring_view(const std::string& s)
@@ -55,6 +55,13 @@ public:
 	}
 	[[nodiscard]] constexpr auto find(const char* s, size_type pos = 0) const {
 		return view().find(s, pos);
+	}
+
+	[[nodiscard]] constexpr auto rfind(char c, size_type pos = 0) const {
+		return view().rfind(c, pos);
+	}
+	[[nodiscard]] constexpr auto rfind(const char* s, size_type pos = 0) const {
+		return view().rfind(s, pos);
 	}
 
 	[[nodiscard]] constexpr zstring_view substr(size_type pos) const {

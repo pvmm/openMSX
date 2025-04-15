@@ -238,6 +238,14 @@ string_view getFilename(string_view path)
 	return path;
 }
 
+zstring_view getFilename(zstring_view path)
+{
+	if (auto pos = path.rfind('/'); pos != string::npos) {
+		return path.substr(pos + 1);
+	}
+	return path;
+}
+
 string_view getDirName(string_view path)
 {
 	if (auto pos = path.rfind('/'); pos != string_view::npos) {

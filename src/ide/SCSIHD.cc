@@ -141,7 +141,7 @@ unsigned SCSIHD::inquiry()
 
 	if (length > 36) {
 		std::string imageName(FileOperations::getFilename(
-		                       getImageName().getOriginal()));
+		                      std::string_view(getImageName().getOriginal())));
 		imageName.resize(20, ' ');
 		std::ranges::copy(imageName, &buffer[36]);
 	}
