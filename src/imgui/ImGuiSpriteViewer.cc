@@ -398,28 +398,45 @@ void ImGuiSpriteViewer::paint(MSXMotherBoard* motherBoard)
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 2, 2, 0,
 			             GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
 		}
-
 		im::TreeNode("Sprite patterns", ImGuiTreeNodeFlags_DefaultOpen, [&]{
+			auto formatBinaryData = [&](uint16_t address) {
+				return formatToString([&](unsigned addr){ return vram[addr]; }, address, address + (size == 16 ? 31 : 7), {}, 1, {}, "%02X", manager.getInterpreter());
+			};
+			auto copyPatternPopup = [&](uint8_t pattern) {
+				bool popup = ImGui::BeginPopupContextWindow("PatternCopyPopup");
+				if (popup) {
+					if (ImGui::MenuItem("Copy pattern data to clipboard")) {
+						auto patData = formatBinaryData(patTable.getAddress(8 * pattern));
+						ImGui::SetClipboardText(tmpStrCat("Pattern Data\n", patData).c_str());
+					}
+					ImGui::EndPopup();
+				}
+				return popup;
+			};
+
 			auto fullSize = gl::vec2(256, 64) * float(zm);
 			im::Child("##pattern", {0, fullSize.y}, 0, ImGuiWindowFlags_HorizontalScrollbar, [&]{
 				auto pos1 = ImGui::GetCursorPos();
 				gl::vec2 scrnPos = ImGui::GetCursorScreenPos();
 				ImGui::Image(patternTex.getImGui(), fullSize);
+				gl::vec2 zoomPatSize{float(size * zm)};
 				bool hovered = ImGui::IsItemHovered() && (mode != 0);
+				if (hovered) {
+					gridPositionPattern = trunc((gl::vec2(ImGui::GetIO().MousePos) - scrnPos) / zoomPatSize);
+				}
 				ImGui::SameLine();
 				im::Group([&]{
-					gl::vec2 zoomPatSize{float(size * zm)};
-					if (hovered) {
-						auto gridPos = trunc((gl::vec2(ImGui::GetIO().MousePos) - scrnPos) / zoomPatSize);
-						auto pattern = (size == 16) ? ((16 * gridPos.y) + gridPos.x) * 4
-						                            : ((32 * gridPos.y) + gridPos.x) * 1;
+					auto pattern = (size == 16) ? ((16 * gridPositionPattern.y) + gridPositionPattern.x) * 4
+												: ((32 * gridPositionPattern.y) + gridPositionPattern.x) * 1;
+					bool popup = copyPatternPopup(pattern);
+					if (hovered || popup) {
 						ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 1); // HACK !!
 						ImGui::StrCat("pattern: ", pattern);
 						ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 1); // HACK !!
 						ImGui::StrCat("address: 0x", hex_string<5>(patTable.getAddress(8 * pattern)));
 						ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 1); // HACK !!
 						auto recipPatTex = recip((size == 16) ? gl::vec2{16, 4} : gl::vec2{32, 8});
-						auto uv1 = gl::vec2(gridPos) * recipPatTex;
+						auto uv1 = gl::vec2(gridPositionPattern) * recipPatTex;
 						auto uv2 = uv1 + recipPatTex;
 						auto pos2 = ImGui::GetCursorPos();
 						int z = (size == 16) ? 3 : 6;
