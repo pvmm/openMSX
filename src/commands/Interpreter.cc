@@ -40,6 +40,10 @@ static int dummyClose(ClientData /*instanceData*/, Tcl_Interp* /*interp*/)
 {
 	return 0;
 }
+static int dummyClose2Proc(ClientData /*instanceData*/, Tcl_Interp* /*interp*/, int)
+{
+	return 0;
+}
 static int dummyInput(ClientData /*instanceData*/, char* /*buf*/,
                       int /*bufSize*/, int* /*errorCodePtr*/)
 {
@@ -55,8 +59,8 @@ static int dummyGetHandle(ClientData /*instanceData*/, int /*direction*/,
 }
 Tcl_ChannelType Interpreter::channelType = {
 	"openMSX console",	 // Type name
-	nullptr,		 // Always non-blocking
-	dummyClose,		 // Close proc
+	TCL_CHANNEL_VERSION_5, // Always non-blocking
+	(Tcl_DriverCloseProc*) dummyClose,		 // Close proc
 	dummyInput,		 // Input proc
 	Interpreter::outputProc, // Output proc
 	nullptr,		 // Seek proc
@@ -64,7 +68,7 @@ Tcl_ChannelType Interpreter::channelType = {
 	nullptr,		 // Get option proc
 	dummyWatch,		 // Watch for events on console
 	dummyGetHandle,		 // Get a handle from the device
-	nullptr,		 // Tcl_DriverClose2Proc
+	dummyClose2Proc, // Tcl_DriverClose2Proc
 	nullptr,		 // Tcl_DriverBlockModeProc
 	nullptr,		 // Tcl_DriverFlushProc
 	nullptr,		 // Tcl_DriverHandlerProc
