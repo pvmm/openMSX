@@ -60,7 +60,8 @@ private:
 	gl::Texture zoomGridTex{gl::Null{}};
 	gl::Texture checkerTex {gl::Null{}};
 	gl::Texture renderTex  {gl::Null{}};
-	gl::vecN<2, int> gridPositionPattern;
+	gl::vecN<2, int> patternGridPosition;
+	gl::vecN<2, int> colorGridPosition;
 
 	static constexpr auto validSizes = {8, 16};
 	static constexpr auto persistentElements = std::tuple{

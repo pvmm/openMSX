@@ -327,6 +327,17 @@ void ImGuiSpriteViewer::paint(MSXMotherBoard* motherBoard)
 		});
 		ImGui::Separator();
 
+		auto copySpriteDataPopup = [&](function_ref<std::string()> supplier) {
+			bool popup = ImGui::BeginPopupContextWindow("CopySpriteDataPopup");
+			if (popup) {
+				if (ImGui::MenuItem("Copy pattern data to clipboard")) {
+					ImGui::SetClipboardText(supplier().c_str());
+				}
+				ImGui::EndPopup();
+			}
+			return popup;
+		};
+
 		int mode = manMode ? manualMode : vdpMode;
 		int size = manSize ? manualSize : vdpSize;
 		int mag  = manMag ? manualMag  : vdpMag;
@@ -402,63 +413,56 @@ void ImGuiSpriteViewer::paint(MSXMotherBoard* motherBoard)
 			auto formatBinaryData = [&](uint16_t address) {
 				return formatToString([&](unsigned addr){ return vram[addr]; }, address, address + (size == 16 ? 31 : 7), {}, 1, {}, "%02X", manager.getInterpreter());
 			};
-			auto copyPatternPopup = [&](uint8_t pattern) {
-				bool popup = ImGui::BeginPopupContextWindow("PatternCopyPopup");
-				if (popup) {
-					if (ImGui::MenuItem("Copy pattern data to clipboard")) {
-						auto patData = formatBinaryData(patTable.getAddress(8 * pattern));
-						ImGui::SetClipboardText(tmpStrCat("Pattern Data\n", patData).c_str());
-					}
-					ImGui::EndPopup();
-				}
-				return popup;
-			};
 
 			auto fullSize = gl::vec2(256, 64) * float(zm);
 			im::Child("##pattern", {0, fullSize.y}, 0, ImGuiWindowFlags_HorizontalScrollbar, [&]{
+				auto drawSpritePatternGrid = [&]() {
+					ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 1); // HACK !!
+					ImGui::StrCat("pattern: ", pattern);
+					ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 1); // HACK !!
+					ImGui::StrCat("address: 0x", hex_string<5>(patTable.getAddress(8 * pattern)));
+					ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 1); // HACK !!
+					auto recipPatTex = recip((size == 16) ? gl::vec2{16, 4} : gl::vec2{32, 8});
+					auto uv1 = gl::vec2(patternGridPosition) * recipPatTex;
+					auto uv2 = uv1 + recipPatTex;
+					auto pos2 = ImGui::GetCursorPos();
+					int z = (size == 16) ? 3 : 6;
+					ImGui::Image(patternTex.getImGui(), float(z) * zoomPatSize, uv1, uv2);
+					if (grid) {
+						if (!zoomGridTex.get()) {
+							zoomGridTex = gl::Texture(false, true); // no interpolation, with wrapping
+						}
+						int s = z * zm;
+						for (auto y : xrange(s)) {
+							auto* line = &pixels[y * s];
+							for (auto x : xrange(s)) {
+								line[x] = (x == 0 || y == 0) ? gColor : 0;
+							}
+						}
+						zoomGridTex.bind();
+						glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, s, s, 0,
+							GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+						ImGui::SetCursorPos(pos2);
+						ImGui::Image(zoomGridTex.getImGui(),
+									 float(z) * zoomPatSize, {}, gl::vec2{float(size)});
+				};
 				auto pos1 = ImGui::GetCursorPos();
 				gl::vec2 scrnPos = ImGui::GetCursorScreenPos();
 				ImGui::Image(patternTex.getImGui(), fullSize);
 				gl::vec2 zoomPatSize{float(size * zm)};
 				bool hovered = ImGui::IsItemHovered() && (mode != 0);
-				if (hovered) {
-					gridPositionPattern = trunc((gl::vec2(ImGui::GetIO().MousePos) - scrnPos) / zoomPatSize);
-				}
 				ImGui::SameLine();
 				im::Group([&]{
 					auto pattern = (size == 16) ? ((16 * gridPositionPattern.y) + gridPositionPattern.x) * 4
 												: ((32 * gridPositionPattern.y) + gridPositionPattern.x) * 1;
-					bool popup = copyPatternPopup(pattern);
-					if (hovered || popup) {
-						ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 1); // HACK !!
-						ImGui::StrCat("pattern: ", pattern);
-						ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 1); // HACK !!
-						ImGui::StrCat("address: 0x", hex_string<5>(patTable.getAddress(8 * pattern)));
-						ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 1); // HACK !!
-						auto recipPatTex = recip((size == 16) ? gl::vec2{16, 4} : gl::vec2{32, 8});
-						auto uv1 = gl::vec2(gridPositionPattern) * recipPatTex;
-						auto uv2 = uv1 + recipPatTex;
-						auto pos2 = ImGui::GetCursorPos();
-						int z = (size == 16) ? 3 : 6;
-						ImGui::Image(patternTex.getImGui(), float(z) * zoomPatSize, uv1, uv2);
-						if (grid) {
-							if (!zoomGridTex.get()) {
-								zoomGridTex = gl::Texture(false, true); // no interpolation, with wrapping
-							}
-							int s = z * zm;
-							for (auto y : xrange(s)) {
-								auto* line = &pixels[y * s];
-								for (auto x : xrange(s)) {
-									line[x] = (x == 0 || y == 0) ? gColor : 0;
-								}
-							}
-							zoomGridTex.bind();
-							glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, s, s, 0,
-								GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
-							ImGui::SetCursorPos(pos2);
-							ImGui::Image(zoomGridTex.getImGui(),
-							             float(z) * zoomPatSize, {}, gl::vec2{float(size)});
-						}
+					bool popup = copySpriteDataPopup([&]() { 
+						return tmpStrCat("Pattern Data\n", formatBinaryData(patTable.getAddress(8 * pattern)));
+					});
+					if (popup) {
+						drawSpritePatternGrid(pattern);
+					} else if (hovered) {
+						gridPositionPattern = trunc((gl::vec2(ImGui::GetIO().MousePos) - scrnPos) / zoomPatSize);
+						drawSpritePatternGrid(pattern)
 					} else {
 						ImGui::Dummy(zoomPatSize);
 					}
@@ -473,6 +477,57 @@ void ImGuiSpriteViewer::paint(MSXMotherBoard* motherBoard)
 		ImGui::Separator();
 
 		im::TreeNode("Sprite attributes", ImGuiTreeNodeFlags_DefaultOpen, [&]{
+			auto drawSpriteColorGrid = [&]() {
+				auto sprite = 8 * colorGridPosition.y + colorGridPosition.x;
+				int addr = getSpriteAttrAddr(sprite, mode);
+				gl::vec2 zoomPatSize{float(size * zm)};
+				int addr = getSpriteAttrAddr(sprite, mode);
+
+				ImGui::SameLine();
+				im::Group([&]{
+					ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 1); // HACK !!
+					ImGui::StrCat("sprite: ", sprite);
+					ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 1); // HACK !!
+					ImGui::StrCat("address: 0x", hex_string<5>(attTable.getAddress(addr)));
+					ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 1); // HACK !!
+					auto pos = ImGui::GetCursorPos();
+					if (checkerBoardSize) {
+						ImGui::Image(checkerTex.getImGui(), 3.0f * zoomPatSize,
+							{}, zoomPatSize / (4.0f * float(checkerBoardSize)));
+					}
+					ImGui::SetCursorPos(pos);
+					renderSpriteAttrib(attTable, sprite, mode, size, transparent,
+									   float(3 * zm), palette, patternTex.getImGui());
+				});
+				ImGui::SameLine();
+				im::Group([&]{
+					ImGui::StrCat("x: ", attTable[addr + 1],
+								  "  y: ", attTable[addr + 0]);
+					ImGui::StrCat("pattern: ", attTable[addr + 2]);
+					if (mode == 1) {
+						auto c = attTable[addr + 3];
+						ImGui::StrCat("color: ", c & 15, (c & 80 ? " (EC)" : ""));
+					} else {
+						int colorBase = getSpriteColorAddr(sprite, mode);
+						im::StyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 1), [&]{ // Tighten spacing
+							ImGui::TextUnformatted("Colors per line (hex):"sv);
+							for (auto y : xrange(4)) {
+								for (auto x : xrange(4)) {
+									auto line = 4 * y + x;
+									auto a = attTable[colorBase + line];
+									ImGui::StrCat(hex_string<1>(line), ": ",
+												  hex_string<1>(a & 15),
+												  (a & 0xe0 ? '*' : ' '),
+												  ' ');
+									if (x != 3) ImGui::SameLine();
+								}
+							}
+							ImGui::StrCat("address: 0x", hex_string<5>(attTable.getAddress(colorBase)));
+						});
+					}
+				});
+			};
+
 			auto zoomSize = float(zm * size);
 			auto fullSize = zoomSize * gl::vec2(8, 4);
 			im::Child("##attrib", {0, fullSize.y}, 0, ImGuiWindowFlags_HorizontalScrollbar, [&]{
@@ -502,55 +557,18 @@ void ImGuiSpriteViewer::paint(MSXMotherBoard* motherBoard)
 						ImGui::Dummy(fullSize);
 					}
 					bool hovered = ImGui::IsItemHovered();
-					if (hovered) {
-						gl::vec2 zoomPatSize{float(size * zm)};
-						auto gridPos = trunc((gl::vec2(ImGui::GetIO().MousePos) - scrnPos) / zoomPatSize);
-						auto sprite = 8 * gridPos.y + gridPos.x;
-						int addr = getSpriteAttrAddr(sprite, mode);
+					bool popup = copySpriteDataPopup([&]() {
+						int colorBase = getSpriteColorAddr(sprite, mode);
+						auto a = attTable[colorBase + line];
 
-						ImGui::SameLine();
-						im::Group([&]{
-							ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 1); // HACK !!
-							ImGui::StrCat("sprite: ", sprite);
-							ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 1); // HACK !!
-							ImGui::StrCat("address: 0x", hex_string<5>(attTable.getAddress(addr)));
-							ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 1); // HACK !!
-							auto pos = ImGui::GetCursorPos();
-							if (checkerBoardSize) {
-								ImGui::Image(checkerTex.getImGui(), 3.0f * zoomPatSize,
-									{}, zoomPatSize / (4.0f * float(checkerBoardSize)));
-							}
-							ImGui::SetCursorPos(pos);
-							renderSpriteAttrib(attTable, sprite, mode, size, transparent,
-							                   float(3 * zm), palette, patternTex.getImGui());
-						});
-						ImGui::SameLine();
-						im::Group([&]{
-							ImGui::StrCat("x: ", attTable[addr + 1],
-							              "  y: ", attTable[addr + 0]);
-							ImGui::StrCat("pattern: ", attTable[addr + 2]);
-							if (mode == 1) {
-								auto c = attTable[addr + 3];
-								ImGui::StrCat("color: ", c & 15, (c & 80 ? " (EC)" : ""));
-							} else {
-								int colorBase = getSpriteColorAddr(sprite, mode);
-								im::StyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 1), [&]{ // Tighten spacing
-									ImGui::TextUnformatted("Colors per line (hex):"sv);
-									for (auto y : xrange(4)) {
-										for (auto x : xrange(4)) {
-											auto line = 4 * y + x;
-											auto a = attTable[colorBase + line];
-											ImGui::StrCat(hex_string<1>(line), ": ",
-											              hex_string<1>(a & 15),
-											              (a & 0xe0 ? '*' : ' '),
-											              ' ');
-											if (x != 3) ImGui::SameLine();
-										}
-									}
-									ImGui::StrCat("address: 0x", hex_string<5>(attTable.getAddress(colorBase)));
-								});
-							}
-						});
+						return tmpStrCat("Color Data\n", formatBinaryData(patTable.getAddress(8 * pattern)));
+					});
+
+					if (popup) {
+						drawSpriteColorGrid();
+					} else if (hovered) {
+						colorGridPosition = trunc((gl::vec2(ImGui::GetIO().MousePos) - scrnPos) / zoomPatSize);
+						drawSpriteColorGrid();
 					}
 				}
 			});
