@@ -60,6 +60,15 @@ openmsx/src/MSXPi/MSXPiDeviceSimple.hh
 openmsx/share/extensions/MSXPiDeviceSimple.xml
 
 and two changes to openMSX/src/DeviceFactory.cc:
+
+          pset WIFISSID Your Wifi Name
+ 
+          pset WIFIPWD YourWifiPassword
+ 
+          pwifi set
+ 
+          preboot
+
           include <MSXPiDeviceSimple.hh>
           } else if (type == "MSXPi") {
           	result = std::make_unique<MSXPiDeviceSimple>(conf);
