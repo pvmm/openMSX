@@ -54,11 +54,20 @@ yet available.
 * Quick Start - MSXPi Extension
 
 The MSXPisimpleDevice is composed these new files:
+
 openmsx/src/MSXPi/MSXPiDeviceSimple.cc
 openmsx/src/MSXPi/MSXPiDeviceSimple.hh
 openmsx/share/extensions/MSXPiDeviceSimple.xml
 
-All commands below asusme you are in the openMSX root folder: openMSX/
+and two changes to openMSX/src/DeviceFactory.cc:
+include <MSXPiDeviceSimple.hh>
+} else if (type == "MSXPi") {
+	result = std::make_unique<MSXPiDeviceSimple>(conf);
+}
+	
+To compile and test the MSXPi extension, follow these steps after cloning this
+repository.
+All commands below assume you are in the openMSX root folder: openMSX/
 
 > Compile the code and install (in my example, I install under /opt/openMSX in
  a Linux platform):
@@ -71,10 +80,10 @@ All commands below asusme you are in the openMSX root folder: openMSX/
  /opt/openMSX/bin/openmsx -machine Panasonic_FS-A1WSX -ext MSXPi 
  -diska MSXPi/msxdisk
 
-> In openMSX, swtich to BASIC adn load the test3 program. The test3 program 
+> In openMSX, switch to BASIC and load the test3.bas program. The test3 program 
  sends a numeric byte to the server. The server increment the number by 1 and
- send back to MSX. the purpose is to show the basic communication mechanismo,
- without a protocol.
+ send back to MSX. The purpose is to show the basic communication mechanism,
+ yet without a protocol:
  load "test3.bas"
  run
  
