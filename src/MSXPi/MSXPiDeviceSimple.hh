@@ -46,5 +46,5 @@ private:
     std::atomic<bool> serverAvailable{false};
     bool readRequested{false};
 };
-
+REGISTER_POLYMORPHIC_INITIALIZER(MSXDevice, MSXPiDeviceSimple, "MSXPiDeviceSimple");
 } // namespace openmsx

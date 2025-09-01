@@ -2,4 +2,6 @@
     <type>pluggable</type>
     <class>MSXPiDeviceSimple</class>
     <slots>0 0 0</slots>
+    <io base="0x56" num="8"/>
 </extension>
+

@@ -32,21 +32,22 @@ void MSXPiDeviceSimple::reset(EmuTime /*time*/)
 
 byte MSXPiDeviceSimple::readIO(uint16_t port, EmuTime /*time*/)
 {
-	std::lock_guard<std::mutex> lock(mtx);
-    switch (port) {
-		case 0x56: // STATUS
-		{
-			byte status;
-			if (!serverAvailable) {
-				status = 0x01; // Offline
-			} else if (!rxQueue.empty()) {
-				status = 0x02; // Data available
-			} else {
-				status = 0x00; // Online, no data
-			}
-			std::cout << "[MSXPi] Read STATUS: " << int(status) << "\n";
-			return status;
-		}
+	std::cout << "[MSXPi] readIO triggered on port 0x" << std::hex << port << "\n";
+    std::lock_guard<std::mutex> lock(mtx);
+    switch (port & 0xFF) {
+        case 0x56: // STATUS
+        {
+            byte status;
+            if (!serverAvailable) {
+                status = 0x01; // Offline
+            } else if (!rxQueue.empty()) {
+                status = 0x02; // Data available
+            } else {
+                status = 0x00; // Online, no data
+            }
+            std::cout << "[MSXPi] Read STATUS: " << int(status) << "\n";
+            return status;
+        }
 
         case 0x5A: // DATA
         {
@@ -57,7 +58,7 @@ byte MSXPiDeviceSimple::readIO(uint16_t port, EmuTime /*time*/)
                 std::cout << "[MSXPi] Read DATA: 0x" << std::hex << int(val) << "\n";
                 return val;
             } else {
-				std::cout << "[MSXPi] Read DATA: Empty Queue\n";
+                std::cout << "[MSXPi] Read DATA: Empty Queue\n";
                 return 0xFF; // No data ready
             }
         }
@@ -69,7 +70,8 @@ byte MSXPiDeviceSimple::readIO(uint16_t port, EmuTime /*time*/)
 
 void MSXPiDeviceSimple::writeIO(uint16_t port, byte value, EmuTime /*time*/)
 {
-    switch (port) {
+	std::cout << "[MSXPi] writeIO triggered on port 0x" << std::hex << port << "\n";
+    switch (port & 0xFF) {
         case 0x56: // CONTROL
             if (serverAvailable) {
                 std::cout << "[MSXPi] Write CONTROL (0x56): prepare next byte for DATA\n";
@@ -102,9 +104,10 @@ void MSXPiDeviceSimple::writeIO(uint16_t port, byte value, EmuTime /*time*/)
 
 byte MSXPiDeviceSimple::peekIO(uint16_t port, EmuTime /*time*/) const
 {
+	std::cout << "[MSXPi] peekIO triggered on port 0x" << std::hex << port << "\n";
     std::lock_guard<std::mutex> lock(mtx);
 
-    switch (port) {
+    switch (port & 0xFF) {
 		case 0x56: // STATUS
 		{
 			if (!serverAvailable) return 0x01;

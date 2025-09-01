@@ -50,13 +50,13 @@ from io import StringIO
 from contextlib import redirect_stdout
 
 version = "1.1"
-BuildId = "20250831.722"
+BuildId = "20250811.718"
 
-CMDSIZE = 3 + 9
-MSGSIZE = 3 + 128
-BLKSIZE = 3 + 256
-SECTORSIZE = 3 + 512
-BULKBLKSIZE = 3 + 4096
+CMDSIZE = 9
+MSGSIZE = 128
+BLKSIZE = 255
+SECTORSIZE = 512
+BULKBLKSIZE = 4096
 
 SPI_SCLK_LOW_TIME = 0.001
 SPI_SCLK_HIGH_TIME = 0.001
@@ -161,65 +161,84 @@ def tick_sclk():
     GPIO.output(SPI_SCLK, GPIO.LOW)
     #time.sleep(SPI_SCLK_LOW_TIME)
 
-def SPI_MASTER_transfer_byte(byte_out=None):
-    global conn
+def __pisendbyte(byte_out):
+    print("pisendbyte:", byte_out)
 
     if detect_host() == "Raspberry Pi":
-        byte_in = 0
-        tick_sclk()
-
-        for bit in [0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01]:
-            # Send bit if byte_out is provided
-            if byte_out is not None:
-                GPIO.output(SPI_MISO, GPIO.HIGH if (byte_out & bit) else GPIO.LOW)
-            else:
-                GPIO.output(SPI_MISO, GPIO.LOW)  # Passive receive mode
-
-            GPIO.output(SPI_SCLK, GPIO.HIGH)
-
-            # Always read MOSI
-            if GPIO.input(SPI_MOSI):
-                byte_in |= bit
-
-            GPIO.output(SPI_SCLK, GPIO.LOW)
-
-        tick_sclk()
-
-        return byte_in if byte_out is None else None
-
-    else:
-        if byte_out is not None:
-            conn.sendall(bytes([byte_out]))
-            return None  # Send-only mode
-        else:
-            byte_in = conn.recv(1)[0]  # Passive receive mode
-            return byte_in
-
-def piexchangebyte(byte_out=None):
-    """
-    Exchanges a byte with the MSXPi interface.
-    If byte_out is provided, sends it and ignores the response.
-    If byte_out is None, waits and reads a byte from MSX.
-    """
-    if detect_host() == "Raspberry Pi":
-        # GPIO-based SPI emulation
         global SPI_CS, SPI_SCLK, SPI_MOSI, SPI_MISO, RPI_READY
 
         GPIO.output(RPI_READY, GPIO.HIGH)
         while GPIO.input(SPI_CS):
             pass
 
-        byte_in = SPI_MASTER_transfer_byte(byte_out)
+        tick_sclk()
+        for bit in [0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01]:
+            GPIO.output(SPI_MISO, GPIO.HIGH if (byte_out & bit) else GPIO.LOW)
+            GPIO.output(SPI_SCLK, GPIO.HIGH)
+            GPIO.output(SPI_SCLK, GPIO.LOW)
+        tick_sclk()
+
         GPIO.output(RPI_READY, GPIO.LOW)
 
     else:
-        # Socket-based communication
         global conn
-        byte_in = SPI_MASTER_transfer_byte(byte_out)
-        if byte_out is None:
-            print("piexchangebyte: received:", hex(byte_in))
+        print("conn.sendall:", bytes([byte_out]))
+        conn.sendall(bytes([byte_out]))
+        
+def pisendbyte(byte):
+    wait_for_ack = True
+    timeout = 1.0
 
-    return byte_in if byte_out is None else None
+    # Ensure byte is an int and in range
+    if isinstance(byte, str):
+        byte = ord(byte)
+    if not (0 <= byte <= 255):
+        raise ValueError(f"Invalid byte value: {byte}")
+
+    conn.sendall(bytes([byte]))
+    print(f"pisendbyte: {byte:#04x}")
+
+    if wait_for_ack:
+        start = time.time()
+        while time.time() - start < timeout:
+            ack = pireadbyte()
+            if ack == 0xAC:
+                print("ACK received")
+                return True
+            time.sleep(0.01)
+        print("ACK timeout")
+        return False
+    return True
+
+def pireadbyte():
+    print("pireadbyte")
+
+    if detect_host() == "Raspberry Pi":
+        global SPI_CS, SPI_SCLK, SPI_MOSI, SPI_MISO, RPI_READY
+
+        GPIO.output(RPI_READY, GPIO.HIGH)
+        while GPIO.input(SPI_CS):
+            pass
+
+        tick_sclk()
+        byte_in = 0
+        for bit in [0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01]:
+            GPIO.output(SPI_MISO, GPIO.LOW)  # Sending dummy bit
+            GPIO.output(SPI_SCLK, GPIO.HIGH)
+            if GPIO.input(SPI_MOSI):
+                byte_in |= bit
+            GPIO.output(SPI_SCLK, GPIO.LOW)
+        tick_sclk()
+
+        GPIO.output(RPI_READY, GPIO.LOW)
+
+    else:
+        global conn
+        print("Now reading conn.recv(1)[0]")
+        byte_in = conn.recv(1)[0]
+
+    print("pireadbyte: received:", hex(byte_in))
+    return byte_in
 
 # Using CRC code from :
 # https://stackoverflow.com/questions/25239423/crc-ccitt-16-bit-python-manual-calculation
@@ -788,14 +807,14 @@ def pdate():
     
     # old code - never executed 
     now = datetime.datetime.now()
-    piexchangebyte(now.year & 0xff)
-    piexchangebyte(now.year >>8)
-    piexchangebyte(now.month)
-    piexchangebyte(now.day)
-    piexchangebyte(now.hour)
-    piexchangebyte(now.minute)
-    piexchangebyte(now.second)
-    piexchangebyte(0)
+    pisendbyte(now.year & 0xff)
+    pisendbyte(now.year >>8)
+    pisendbyte(now.month)
+    pisendbyte(now.day)
+    pisendbyte(now.hour)
+    pisendbyte(now.minute)
+    pisendbyte(now.second)
+    pisendbyte(0)
 
 
 def pplay():
@@ -1222,16 +1241,16 @@ def dskiosct():
             
     else:
         # Syncronize with MSX
-        while piexchangebyte() != READY:  # was 0x9F:
+        while pireadbyte() != READY:  # was 0x9F:
             pass
             
-        sectorInfo[0] = piexchangebyte()
-        sectorInfo[1] = piexchangebyte()
-        sectorInfo[2] = piexchangebyte()
-        byte_lsb = piexchangebyte()
-        byte_msb = piexchangebyte()
+        sectorInfo[0] = pireadbyte()
+        sectorInfo[1] = pireadbyte()
+        sectorInfo[2] = pireadbyte()
+        byte_lsb = pireadbyte()
+        byte_msb = pireadbyte()
         sectorInfo[3] = byte_lsb + 256 * byte_msb
-        msxcrc = piexchangebyte()
+        msxcrc = pireadbyte()
 
         crc = 0xFF
         crc = crc ^ (sectorInfo[0])        
@@ -1239,7 +1258,7 @@ def dskiosct():
         crc = crc ^ (sectorInfo[2])
         crc = crc ^ (byte_lsb)        
         crc = crc ^ (byte_msb)    
-        piexchangebyte(crc)
+        pisendbyte(crc)
       
         if crc != msxcrc:
             print("dos_sct: crc error")
@@ -1252,136 +1271,84 @@ def dskiosct():
 def recvdata(bytecounter = BLKSIZE):
 
     print("recvdata")
-
-    th = threading.Timer(3.0, exitDueToSyncError)
-            
-    retries = GLOBALRETRIES
-    while retries > 0:
-        retries -= 1
+    # Syncronize with MSX
+    while pireadbyte() != READY:
+        print("Syncing with MSX...")
+        #pass
         
-        # Syncronize with MSX
-        while piexchangebyte() != READY: # WAS 0x9F:
-            pass
-            
-        data = bytearray()
-        chksum = 0
-        while(bytecounter > 0 ):
-            msxbyte = piexchangebyte()
-            data.append(msxbyte)
-            chksum += msxbyte
-            bytecounter -= 1
-
-        # Receive the CRC
-        msxsum = piexchangebyte()
-        
-        # Send local CRC - only 8 right bits
-        thissum_r = (chksum % 256)              # right 8 bits
-        thissum_l = (chksum >> 8)                 # left 8 bits
-        thissum = ((thissum_l + thissum_r) % 256)
-        piexchangebyte(thissum)
-        
-        if (thissum == msxsum):
-            rc = RC_SUCCESS
-            #print("recvdata: checksum is a match")
-            th.cancel()
-            break
-        else:
-            rc = RC_TXERROR
-            print("recvdata: checksum error")
-            th.start()
-        
-    #print (hex(rc))
-    return rc,data
+    print("Received READY... proceeding to read block size (max 255 bytes)")
+    print(f"Will read {bytecounter} bytes")
+    
+    bytecounter = pireadbyte();
+    
+    
+    print(f"will read {bytecounter} bytes")
+    
+    data = bytearray()
+    chksum = 0
+    while(bytecounter > 0 ):
+        msxbyte = pireadbyte()
+        data.append(msxbyte)
+        chksum += msxbyte
+        bytecounter -= 1
+        print(bytecounter,chr(msxbyte))
+                
+    print(f"Exiting recvdata: {data}")
+    return RC_SUCCESS,data
 
 def senddata(data, blocksize = BLKSIZE):
-    
     print("senddata")
+    while pireadbyte() != READY:
+        print("sync loop")
+        time.sleep(0.01)
 
-    th = threading.Timer(3.0, exitDueToSyncError)
-    th.start()
-            
-    retries = GLOBALRETRIES
-    while retries > 0:
-        retries -= 1
-        print(f"retry {retries}")
-        # Syncronize with MSX
-        while piexchangebyte() != READY: # WAS 0x9F:
-            printf(f"sync loop")
-            pass
-            
-        byteidx = 0
-        chksum = 0
+    print("Synced with MSX... sending data")
+    pisendbyte(0xAA)  # Header
+
+    pisendbyte(len(data)) # send the size of the reply
+    for pibyte0 in data:
+        pibyte = pibyte0 if isinstance(pibyte0, int) else ord(pibyte0)
+        pisendbyte(pibyte)
+        time.sleep(0.05)  # Give MSX time to read
+
+    print("Exiting")
+    return RC_SUCCESS     
+
+def sendmultiblock(buf, blocksize=BLKSIZE, rc=RC_SUCCESS):
+    """
+    Send data in one or multiple blocks.
     
-        while(byteidx < blocksize):
-            #if (byteidx == 0) or (byteidx > 499):
-            #    print(byteidx)
-            pibyte0 = data[byteidx]
-            if type(pibyte0) is int:
-                pibyte = pibyte0
-            else:
-                pibyte = ord(pibyte0)
-
-            chksum += pibyte
-            piexchangebyte(pibyte)
-            byteidx += 1
-        
-        # Send local CRC - only 8 right bits
-        thissum_r = (chksum % 256)              # right 8 bits
-        thissum_l = (chksum >> 8)                 # left 8 bits
-        thissum = ((thissum_l + thissum_r) % 256)
-        piexchangebyte(thissum)
-    
-        # Receive the CRC
-        msxsum = piexchangebyte()
-            
-        if (thissum == msxsum):
-            rc = RC_SUCCESS
-            print("senddata: checksum is a match")
-            th.cancel()
-            break
-        else:
-            rc = RC_TXERROR
-            print("senddata: checksum error")
-    
-    #print (hex(rc))
-    return rc
-
-def sendmultiblock(buf, blocksize = BLKSIZE, rc = RC_SUCCESS):
-
+    Args:
+        buf (bytes or bytearray): Data to send
+        blocksize (int): Max bytes per block
+        rc (int): Return code for the last block
+    """
     print("sendmultiblock")
+    buf_len = len(buf)
 
-    numblocks = math.ceil((len(buf)+3)/blocksize)
-    
-    # If buffer small or equal to BLKSIZE
-    if numblocks == 1:  # Only one block to transfer
-        print(f"1 block rc = {hex(rc)} , buf size = {len(buf)} blocksize = {blocksize}")
-        print(f"buf = {buf}")
-        data = bytearray(blocksize)
-        data[0] = rc
-        data[1] = int(len(buf) % 256)
-        data[2] = int(len(buf) >> 8)
-        data[3:len(buf)] = buf
-        senddata(data[:blocksize],blocksize)
-    else: # Multiple blocks to transfer
-        idx = 0
-        thisblk = 0
-        while thisblk < numblocks:
-            data = bytearray(blocksize)
-            if thisblk + 1 == numblocks:
-                data[0] = rc # Last block - send original RC
-                datasize = len(buf) - idx
-                data[1] = datasize % 256
-                data[2] = datasize >> 8
-            else:
-                data[0] = RC_READY  # This is not last block
-                datasize = blocksize - 3
-                data[1] = datasize % 256
-                data[2] = datasize >> 8
-            data[3:datasize] = buf[idx:idx + datasize]
-            senddata(data,blocksize)
-            idx += (blocksize - 3)
-            thisblk += 1
-                        
+    # 1. Single block
+    if buf_len <= blocksize:
+        print(f"Single block: rc={hex(rc)}, buf size={buf_len}, blocksize={blocksize}")
+        senddata(buf, buf_len)
+        return rc
+
+    # 2. Multi-block transfer
+    num_blocks = (buf_len + blocksize - 1) // blocksize
+    print(f"Multi-block: {num_blocks} blocks, buf size={buf_len}, blocksize={blocksize}")
+
+    offset = 0
+    for block_idx in range(num_blocks):
+        # Determine size for this block
+        remaining = buf_len - offset
+        this_block_size = min(blocksize, remaining)
+
+        # Build this chunk
+        chunk = buf[offset:offset + this_block_size]
+        print(f"Sending block {block_idx+1}/{num_blocks}, size={len(chunk)}")
+        senddata(chunk, len(chunk))
+
+        offset += this_block_size
+
     return rc
     
 def prestart():
@@ -1427,7 +1394,7 @@ def apitest():
     buf2 = data.decode().split("\x00")[0]
 
     #print("Sending response: ",buf2)
-    rc = sendmultiblock(('Pi:CALL MSXPISEND data:' + buf2).encode(), BLKSIZE, RC_SUCCESS)
+    rc = sendmultiblock(('Pi:CALL MSXPISEND data:' + buf2).encode(), len(buf2), RC_SUCCESS)
     
 def chatgpt():
     print("chatgpt()")
@@ -1491,8 +1458,11 @@ def initialize_connection():
     conn, addr = s.accept()
     print(f"[Python Server] Connected by {addr}")
     return conn
-
-  
+    
+def mycommand():
+    print(f"Executing mycommand")
+    senddata('FEEDBACK', 8)
+    
 """ ============================================================================
     msxpi-server.py
     main program starts here
@@ -1578,17 +1548,17 @@ print("Starting MSXPi Server Version ",version,"Build",BuildId)
 try:
     while True:
         try:
-            print("st_recvcmd: waiting command")
+            print(">>>>>> st_recvcmd: waiting command")
             rc,buf = recvdata(CMDSIZE)
 
+            print(f"Received command: {buf}")
+            
             if (rc == RC_SUCCESS):
                 if buf[0] == 0:
                     fullcmd=''
                 else:
                     fullcmd = buf.decode().split("\x00")[0]
 
-                print(f"Received command: {fullcmd}")
-                
                 cmd = fullcmd.split()[0].lower()
                 parms = fullcmd[len(cmd)+1:]
                 # Executes the command (first word in the string)
