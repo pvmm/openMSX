@@ -60,10 +60,10 @@ openmsx/src/MSXPi/MSXPiDeviceSimple.hh
 openmsx/share/extensions/MSXPiDeviceSimple.xml
 
 and two changes to openMSX/src/DeviceFactory.cc:
-include <MSXPiDeviceSimple.hh>
+```include <MSXPiDeviceSimple.hh>
 } else if (type == "MSXPi") {
 	result = std::make_unique<MSXPiDeviceSimple>(conf);
-}
+}</code>
 	
 To compile and test the MSXPi extension, follow these steps after cloning this
 repository.
