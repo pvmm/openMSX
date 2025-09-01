@@ -1,0 +1,5 @@
+<extension name="MSXPi">
+    <type>pluggable</type>
+    <class>MSXPiDeviceSimple</class>
+    <slots>0 0 0</slots>
+</extension>

@@ -27,3 +27,62 @@ Happy MSX-ing!
                         the openMSX developers
 
 ----------------------------------------------------------------------------
+
+* This Fork is for MSXPi Extension for openMSX
+----------------------------------------------------------------------------
+
+The MSXPi extension allows you to connect a virtual MSXPi to your MSX 
+running in the openMSX, and use the same commands found in the physical
+MSXPi running in real hardware.
+
+It works by implementing a MSXPi Device that listen to the I/O ports allocated
+for MSXPi and fowarding the data to a local TCP socket, which is implemented
+by a Python program (the msxpi-server). The MSXPi device also works for data
+send by the Python program, that is, reading the responses and forwarding to
+the MSX computer, just like the real thing.
+
+There are some difference in the Python code that runs along with openMSX and
+the Python server that runs in the Raspberry Pi - specifically, the low-level
+byte transfer which uses GPIO in the Raspberry Pi, and Socket communication
+in the openMSX solution, but other than that, the remaining code should be
+the same and work on both platforms.
+
+This is a work in progress - all the features mentioned are planned and not
+yet available.
+
+
+* Quick Start - MSXPi Extension
+
+The MSXPisimpleDevice is composed these new files:
+openmsx/src/MSXPi/MSXPiDeviceSimple.cc
+openmsx/src/MSXPi/MSXPiDeviceSimple.hh
+openmsx/share/extensions/MSXPiDeviceSimple.xml
+
+All commands below asusme you are in the openMSX root folder: openMSX/
+
+> Compile the code and install (in my example, I install under /opt/openMSX in
+ a Linux platform):
+ make -j$(nproc); sudo make install
+ 
+> run the Python server on the local host - use a second CLI window for this:
+ python3 MSXPi/msxpi-server.python3
+ 
+> Start openMSX (Assuming you created a folder with MSX-DOS 1.3 to boot from):
+ /opt/openMSX/bin/openmsx -machine Panasonic_FS-A1WSX -ext MSXPi 
+ -diska MSXPi/msxdisk
+
+> In openMSX, swtich to BASIC adn load the test3 program. The test3 program 
+ sends a numeric byte to the server. The server increment the number by 1 and
+ send back to MSX. the purpose is to show the basic communication mechanismo,
+ without a protocol.
+ load "test3.bas"
+ run
+ 
+To-Do:
+- Protocol - MSXPi extension needs a protocol that will read single-bytes and
+ translate into commands that the server can execute. Effort should concentrate
+ for now in the design, development and testing of a robust protocol.
+ It can be prototyped in BASIC until final design is agreed, when it will then
+ be coded in Assembly and integrated to the MSXPi BIOS (for MSX-DOS commands
+ and BASIC BIOS extension).
+ 
