@@ -197,4 +197,6 @@ void MSXPiDeviceSimple::serverThread()
     std::cout << "[MSXPi] Server thread exiting\n";
 }
 
+REGISTER_MSXDEVICE(MSXPiDeviceSimple, "MSXPiDeviceSimple");
+
 } // namespace openmsx

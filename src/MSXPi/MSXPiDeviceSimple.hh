@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MSXPIDEVICE_HH
+#define MSXPIDEVICE_HH
 
 #include "MSXDevice.hh"
 #include "DeviceConfig.hh"
@@ -46,5 +47,7 @@ private:
     std::atomic<bool> serverAvailable{false};
     bool readRequested{false};
 };
-REGISTER_POLYMORPHIC_INITIALIZER(MSXDevice, MSXPiDeviceSimple, "MSXPiDeviceSimple");
+
 } // namespace openmsx
+
+#endif

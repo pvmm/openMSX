@@ -86,6 +86,7 @@
 #include "MSXMirrorDevice.hh"
 #include "DummyDevice.hh"
 #include "MSXDeviceSwitch.hh"
+#include "MSXPiDeviceSimple.hh"
 #include "MSXMapperIO.hh"
 #include "VDPIODelay.hh"
 #include "SensorKid.hh"
@@ -95,7 +96,6 @@
 #include "components.hh"
 #include "one_of.hh"
 #include <memory>
-#include <MSXPiDeviceSimple.hh>
  
 #if COMPONENT_LASERDISC
 #include "PioneerLDControl.hh"
