@@ -12,14 +12,14 @@
   <devices>
     <primary slot="any">
       <secondary slot="any">
-        <MSXPi id="MSXPi">
+        <ROM id="MSXPi cart">
           <io base="0x56" num="8"/>
-		  <mem base="0x4000" size="0x4000"/>
-		  <rom>
-            <sha1>5141771ce879b8f32f868bfacf0ac233475d8ff8</sha1>
+          <mem base="0x4000" size="0x4000"/>
+          <rom>
+            <sha1>679c204be96d886061d8be4e5aaf002989adbf05</sha1>
             <filename>msxpibios.rom</filename>
           </rom>
-        </MSXPi>
+        </ROM>
       </secondary>
     </primary>
   </devices>
