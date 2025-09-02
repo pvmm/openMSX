@@ -1,7 +1,26 @@
-<extension name="MSXPi">
+<?xml version="1.0" ?>
+<!DOCTYPE msxconfig SYSTEM 'msxconfig2.dtd'>
+<msxconfig>
+  <info>
+    <name>MSXPi</name>
+    <manufacturer>https://github.com/costarc/MSXPi</manufacturer>
+    <code/>
+    <release_year/>
+    <description>MSXPi Simulator</description>
     <type>pluggable</type>
-    <class>MSXPiDeviceSimple</class>
-    <slots>0 0 0</slots>
-    <io base="0x56" num="8"/>
-</extension>
-
+  </info>
+  <devices>
+    <primary slot="any">
+      <secondary slot="any">
+        <MSXPi id="MSXPi Simple Device">
+          <io base="0x56" num="8"/>
+		  <mem base="0x4000" size="0x04000"/>
+		  <rom>
+            <sha1>5141771ce879b8f32f868bfacf0ac233475d8ff8</sha1>
+            <filename>msxpibios.rom</filename>
+          </rom>
+        </MSXPi>
+      </secondary>
+    </primary>
+  </devices>
+</msxconfig>
