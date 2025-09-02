@@ -86,7 +86,7 @@
 #include "MSXMirrorDevice.hh"
 #include "DummyDevice.hh"
 #include "MSXDeviceSwitch.hh"
-#include "MSXPiDeviceSimple.hh"
+#include "MSXPiDevice.hh"
 #include "MSXMapperIO.hh"
 #include "VDPIODelay.hh"
 #include "SensorKid.hh"
@@ -318,7 +318,7 @@ std::unique_ptr<MSXDevice> DeviceFactory::create(DeviceConfig& conf)
 	} else if (type == one_of("T7775", "T7937", "T9763", "T9769")) {
 		// Ignore for now. We might want to create a real device for it later.
 	} else if (type == "MSXPi") {
-		result = std::make_unique<MSXPiDeviceSimple>(conf);
+		result = std::make_unique<MSXPiDevice>(conf);
 	} else {
 		throw MSXException("Unknown device \"", type,
 		                   "\" specified in configuration");

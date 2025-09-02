@@ -13,10 +13,10 @@
 
 namespace openmsx {
 
-class MSXPiDeviceSimple : public MSXDevice {
+class MSXPiDevice : public MSXDevice {
 public:
-    explicit MSXPiDeviceSimple(const DeviceConfig& config);
-    ~MSXPiDeviceSimple() override;
+    explicit MSXPiDevice(const DeviceConfig& config);
+    ~MSXPiDevice() override;
 
     void reset(EmuTime time) override;
     byte readIO(uint16_t port, EmuTime time) override;

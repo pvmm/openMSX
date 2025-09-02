@@ -1,19 +1,19 @@
-#include "MSXPiDeviceSimple.hh"
+#include "MSXPiDevice.hh"
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <iostream>
 
 namespace openmsx {
 
-MSXPiDeviceSimple::MSXPiDeviceSimple(const DeviceConfig& config)
+MSXPiDevice::MSXPiDevice(const DeviceConfig& config)
     : MSXDevice(config)
 {
     running = true;
-    worker = std::thread(&MSXPiDeviceSimple::serverThread, this);
+    worker = std::thread(&MSXPiDevice::serverThread, this);
     std::cout << "[MSXPi] Device initialized\n";
 }
 
-MSXPiDeviceSimple::~MSXPiDeviceSimple()
+MSXPiDevice::~MSXPiDevice()
 {
     running = false;
     if (worker.joinable()) worker.join();
@@ -21,7 +21,7 @@ MSXPiDeviceSimple::~MSXPiDeviceSimple()
     std::cout << "[MSXPi] Device destroyed\n";
 }
 
-void MSXPiDeviceSimple::reset(EmuTime /*time*/)
+void MSXPiDevice::reset(EmuTime /*time*/)
 {
     std::lock_guard<std::mutex> lock(mtx);
     rxQueue = std::queue<byte>();
@@ -30,7 +30,7 @@ void MSXPiDeviceSimple::reset(EmuTime /*time*/)
     std::cout << "[MSXPi] Device reset\n";
 }
 
-byte MSXPiDeviceSimple::readIO(uint16_t port, EmuTime /*time*/)
+byte MSXPiDevice::readIO(uint16_t port, EmuTime /*time*/)
 {
 	std::cout << "[MSXPi] readIO triggered on port 0x" << std::hex << port << "\n";
     std::lock_guard<std::mutex> lock(mtx);
@@ -68,7 +68,7 @@ byte MSXPiDeviceSimple::readIO(uint16_t port, EmuTime /*time*/)
     }
 }
 
-void MSXPiDeviceSimple::writeIO(uint16_t port, byte value, EmuTime /*time*/)
+void MSXPiDevice::writeIO(uint16_t port, byte value, EmuTime /*time*/)
 {
 	std::cout << "[MSXPi] writeIO triggered on port 0x" << std::hex << port << "\n";
     switch (port & 0xFF) {
@@ -102,7 +102,7 @@ void MSXPiDeviceSimple::writeIO(uint16_t port, byte value, EmuTime /*time*/)
     }
 }
 
-byte MSXPiDeviceSimple::peekIO(uint16_t port, EmuTime /*time*/) const
+byte MSXPiDevice::peekIO(uint16_t port, EmuTime /*time*/) const
 {
 	std::cout << "[MSXPi] peekIO triggered on port 0x" << std::hex << port << "\n";
     std::lock_guard<std::mutex> lock(mtx);
@@ -127,7 +127,7 @@ byte MSXPiDeviceSimple::peekIO(uint16_t port, EmuTime /*time*/) const
     }
 }
 
-void MSXPiDeviceSimple::serverThread()
+void MSXPiDevice::serverThread()
 {
     while (running) {
         if (sockfd < 0) {
@@ -197,6 +197,6 @@ void MSXPiDeviceSimple::serverThread()
     std::cout << "[MSXPi] Server thread exiting\n";
 }
 
-REGISTER_MSXDEVICE(MSXPiDeviceSimple, "MSXPiDeviceSimple");
+REGISTER_MSXDEVICE(MSXPiDevice, "MSXPiDevice");
 
 } // namespace openmsx
