@@ -16,6 +16,7 @@
 #include "ESE_RAM.hh"
 #include "ESE_SCC.hh"
 #include "FraelSwitchableROM.hh"
+#include "FujiNet.hh"
 #include "GoudaSCSI.hh"
 #include "JVCMSXMIDI.hh"
 #include "MSXAudio.hh"
@@ -99,6 +100,7 @@
 #include <memory>
 
 #include "components.hh"
+#include "serial/FujiNet.hh"
 #if COMPONENT_LASERDISC
 #include "PioneerLDControl.hh"
 #endif
@@ -321,6 +323,8 @@ std::unique_ptr<MSXDevice> DeviceFactory::create(DeviceConfig& conf)
 		// Ignore for now. We might want to create a real device for it later.
 	} else if (type == "MSXPiDevice") {
 		result = std::make_unique<MSXPiDevice>(conf);
+	} else if (type == "FujiNet") {
+		result = std::make_unique<FujiNet>(conf);
 	} else {
 		throw MSXException("Unknown device \"", type,
 		                   "\" specified in configuration");
