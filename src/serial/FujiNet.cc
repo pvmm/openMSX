@@ -1,87 +1,144 @@
 #include "FujiNet.hh"
+#include "Timer.hh"
 
-#include "EventDistributor.hh"
-#include "PlugException.hh"
-#include "Scheduler.hh"
+#include "GlobalSettings.hh"
 #include "serialize.hh"
-
-#include "StringOp.hh"
-#include "checked_cast.hh"
-
-// #include <sys/stat.h>
-// #include <fcntl.h>
-// #include <stdlib.h>
-// #include <stdio.h>
-#include <algorithm>
-#include <array>
-#include <bit>
-#include <cassert>
-
+#include <sys/_types/_ssize_t.h>
 
 namespace openmsx {
 
-FujiNet::FujiNet(const DeviceConfig& config)
+FujiNet::FujiNet(DeviceConfig& config)
     : MSXDevice(config)
+    , rom(getName() + " ROM", "rom", config)
 {
-	// int master, slave;
-	// char *name;
-	// // openpty(&master, &slave, name, NULL, NULL);
-	// openpty(&master, &slave, NULL, NULL, NULL);
-	// // pty = (FILE*)master;
+    stopReading = false;
+    thread = std::thread(&FujiNet::readPty, this);
 
-	// char *slavename;
-    // int masterfd;
-    // masterfd = open("/dev/ptmx", O_RDWR);
-    // grantpt(masterfd);
-    // unlockpt(masterfd);
-    // slavename = ptsname(masterfd);
-    // pty_fd = masterfd;
-    // pty_fd = fdopen(masterfd, NULL);
+    pty_fd = open("/dev/ptmx", O_RDWR);
+    grantpt(pty_fd);
+    unlockpt(pty_fd);
+    pty_name = std::string(ptsname(pty_fd));
 
-    thread = std::thread(&FujiNet::run, this);
-
-    // std::fputs("Hi!\n", pty_fd);
-    // write(masterfd, "Hi\n", 3);
-
-    // eventDistributor.registerEventListener(EventType::RS232_NET, *this);
-	//
+    getCliComm().printInfo("FujiNet: opened ", pty_name);
 }
 
 FujiNet::~FujiNet()
 {
-	if (thread.joinable()) {
-		// poller.abort();
+    stopReading = true;
+
+    if (thread.joinable()) {
+		poller.abort();
 		thread.join();
 	}
-
-	// std::fputs("Bye!\n", pty_fd);
 }
 
-void FujiNet::run()
+void FujiNet::readPty()
 {
-    printf("x");
-    // std::fputc('.', pty_fd);
+    if (pty_fd == -1) {
+        return;
+    }
+
+    getCliComm().printInfo("FujiNet: Start read loop");
+    while (!stopReading) {
+        if (!poller.poll(pty_fd)) {
+            char buf[2048];
+            ssize_t len = read(pty_fd, &buf, 2048);
+            getCliComm().printInfo("FujiNet: Received ", len, " bytes");
+
+            if (len > 0) {
+                std::lock_guard lock(mtx);
+                for (auto i : xrange(std::min<size_t>(len, 2048 - rxBuffer.size()))) {
+                    rxBuffer.push_back(buf[i]);
+                }
+            }
+        }
+    }
 }
 
 void FujiNet::reset(EmuTime time)
 {
-    printf("x");
+    if (pty_fd > -1) {
+        // write(pty_fd, "reset\n", 6);
+    }
 }
+
+// IO_OFFSET       EQU     (0x4000 + 0x3FFC)
+// IO_GETC         EQU     (IO_OFFSET + 0)
+// IO_STATUS       EQU     (IO_OFFSET + 1)
+// IO_PUTC         EQU     (IO_OFFSET + 2)
+// IO_CONTROL      EQU     (IO_OFFSET + 3)
 
 uint8_t FujiNet::readMem(uint16_t address, EmuTime time)
 {
-    return 0xFF;
+    std::lock_guard lock(mtx);
+    // getCliComm().printInfo("FujiNet: readMem() ", address);
+    switch (address) {
+        case 0x7FFC: // IO_GETC
+            getCliComm().printInfo("FujiNet: GETC");
+            if (!rxBuffer.empty()) {
+				return rxBuffer.pop_front();
+			}
+            return 0x00;
+        case 0x7FFD: // IO_STATUS
+            getCliComm().printInfo("FujiNet: STATUS");
+            if (!rxBuffer.empty()) {
+                return 0b1000000; // data available
+			}
+            return 0x00;
+        default:
+            if (0x4000 <= address && address < 0x8000) {
+          		return rom[address & 0x3FFF];
+           	}
+           	return 0xFF;
+    }
 }
 
 uint8_t FujiNet::peekMem(uint16_t address, EmuTime time) const
 {
-    return 0xFF;
+    std::lock_guard lock(mtx);
+    // getCliComm().printInfo("FujiNet: peekMem() ", address);
+    switch (address) {
+        case 0x7FFC: // IO_GETC
+        case 0x7FFD: // IO_STATUS
+            if (!rxBuffer.empty()) {
+                return 0b1000000; // data available
+			}
+            return 0x00;
+        default:
+            break;
+    }
 }
 
 void FujiNet::writeMem(uint16_t address, uint8_t value, EmuTime time)
 {
-    printf("x");
+    std::lock_guard lock(mtx);
+    // getCliComm().printInfo("FujiNet: writeMem() ", address, " ", value);
+    switch (address) {
+        case 0x7FFE: // IO_PUTC
+            if (pty_fd > -1) {
+                getCliComm().printInfo("FujiNet: PUTC ", value);
+                write(pty_fd, &value, 1);
+            }
+            return;
+        default:
+            break;
+    }
 }
+
+// void FujiNet::globalWrite(uint16_t address, uint8_t value, EmuTime time)
+// {
+//     getCliComm().printInfo("FujiNet: globalWrite()", address, value);
+//     switch (address) {
+//         case 0x7FFE: // IO_PUTC
+//             if (pty_fd > -1) {
+//                 std::lock_guard lock(mtx);
+//                 write(pty_fd, &value, 1);
+//             }
+//             return;
+//         default:
+//             return;
+//     }
+// }
 
 template<typename Archive>
 void FujiNet::serialize(Archive& ar, unsigned /*version*/)

@@ -7,23 +7,23 @@
     <code />
     <release_year />
     <description>FujiNet Network Adapter</description>
-    <type>pluggable</type>
   </info>
   <devices>
     <primary slot="any">
       <secondary slot="any">
         <FujiNet id="FujiNet">
-          <io base="0x56" num="1" />
+          <!-- <io base="0x56" num="1" />
           <io base="0x57" num="1" />
-          <io base="0x5A" num="1" />
-        </FujiNet>
-        <!-- <ROM id="MSXPi BIOS">
+          <io base="0x5A" num="1" /> -->
+        <!-- </FujiNet> -->
+        <!-- <ROM id="FujiNet ROM"> -->
           <mem base="0x4000" size="0x4000" />
           <rom>
-            <sha1>c429077a5f58b006125247a67783ea4ea6fb7389</sha1>
-            <filename>msxpibios.rom</filename>
+            <sha1>55da0135dbccd8425826aeb7c80819c894224ff0</sha1>
+            <filename>fujinet.rom</filename>
           </rom>
-        </ROM> -->
+        <!-- </ROM> -->
+        </FujiNet>
       </secondary>
     </primary>
   </devices>
