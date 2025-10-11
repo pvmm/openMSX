@@ -39,19 +39,19 @@ void FujiNet::readPty()
     }
 
     getCliComm().printInfo("FujiNet: Start read loop");
+    char buf[2048];
     while (!stopReading) {
-        if (!poller.poll(pty_fd)) {
-            char buf[2048];
+        // if (!poller.poll(pty_fd)) {
             ssize_t len = read(pty_fd, &buf, 2048);
-            getCliComm().printInfo("FujiNet: Received ", len, " bytes");
 
             if (len > 0) {
+                getCliComm().printInfo("FujiNet: Received ", len, " bytes");
                 std::lock_guard lock(mtx);
                 for (auto i : xrange(std::min<size_t>(len, 2048 - rxBuffer.size()))) {
                     rxBuffer.push_back(buf[i]);
                 }
             }
-        }
+        // }
     }
 }
 
@@ -80,9 +80,9 @@ uint8_t FujiNet::readMem(uint16_t address, EmuTime time)
 			}
             return 0x00;
         case 0x7FFD: // IO_STATUS
-            getCliComm().printInfo("FujiNet: STATUS");
+            // getCliComm().printInfo("FujiNet: STATUS");
             if (!rxBuffer.empty()) {
-                return 0b1000000; // data available
+                return 0b10000000; // data available
 			}
             return 0x00;
         default:
@@ -101,7 +101,7 @@ uint8_t FujiNet::peekMem(uint16_t address, EmuTime time) const
         case 0x7FFC: // IO_GETC
         case 0x7FFD: // IO_STATUS
             if (!rxBuffer.empty()) {
-                return 0b1000000; // data available
+                return 0b10000000; // data available
 			}
             return 0x00;
         default:
