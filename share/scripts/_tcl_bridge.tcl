@@ -57,6 +57,7 @@ namespace eval tcl_bridge {
 variable wp {}
 variable latch 0
 variable address
+variable default_drive A
 
 set_help_text tcl_bridge \
 {tcl_bridge -- allows guest/host communication through a MSX-to-Tcl bridge.
@@ -126,6 +127,52 @@ proc read_command {byte} {
             set latch 0
             execute_command $address
         }
+    }
+}
+
+proc getdisk {filename {defaultdrive {}} {
+    if {[regexp {[A-Za-z]:} $src]} {
+        set letter [string toupper [string index $filename 0]]
+        if {$letter eq Z} { return $letter }
+    } elseif {$defaultdrive ne {}} {
+        if {$defaultdrive eq Z} { error "Can't use external drive as default drive" }
+        set letter $defaultdrive
+    }
+    if {![catch {[eval "disk$letter"]}]} {
+        return $letter
+    }
+    if {![catch {[eval "hd$letter"]}]} {
+        return $letter
+    }
+}
+
+proc disktype {letter} {
+    if {$letter eq Z} return EXTDISK
+    return MSXDISK
+}
+
+# diskmanipulator copy
+proc dmc {{options {}} src dst} {
+    variable default_drive
+    set src [string trim $src]
+    set dst [string trim $dst]
+    set srcdisk [getdisk $src $default_drive]
+    set dstdisk [getdisk $dst $default_drive]
+    if {[disktype $srcdisk] eq [disktype $dstdisk]} {
+        error "Invalid operation between same drive types"
+    }
+    if {[disktype $srcdisk] eq EXTDSK} {
+        set newdir [file dirname $src]
+        set olddir [string range [diskmanipulator chdir] 19 end]  ;# remove "Current directory: "
+        diskmanipulator chdir $newdir
+        puts "diskmanipulator import $dstdisk [glob [file tail $src]]"
+        diskmanipulator chdir $olddir
+    } else {
+        set newdir [file dirname $src]
+        set olddir [string range [diskmanipulator chdir] 19 end]  ;# remove "Current directory: "
+        diskmanipulator chdir $newdir
+        puts "diskmanipulator export $srcdisk $dst [glob [file tail $src]]"
+        diskmanipulator chdir $olddir
     }
 }
 
