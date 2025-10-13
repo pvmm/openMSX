@@ -7,19 +7,25 @@
 
 namespace openmsx {
 
+static constexpr size_t MAX_BUF_LEN     = 4 * 1024;
+static constexpr size_t IO_GETC_ADDR    = 0x7FFC;
+static constexpr size_t IO_STATUS_ADDR  = 0x7FFD;
+static constexpr size_t IO_PUTC_ADDR    = 0x7FFE;
+static constexpr size_t IO_CONTROL_ADDR = 0x7FFF;
+
 FujiNet::FujiNet(DeviceConfig& config)
     : MSXDevice(config)
     , rom(getName() + " ROM", "rom", config)
 {
-    stopReading = false;
-    thread = std::thread(&FujiNet::readPty, this);
-
-    pty_fd = open("/dev/ptmx", O_RDWR);
+    pty_fd = open("/dev/ptmx", O_RDWR | O_NONBLOCK);
     grantpt(pty_fd);
     unlockpt(pty_fd);
     pty_name = std::string(ptsname(pty_fd));
 
     getCliComm().printInfo("FujiNet: opened ", pty_name);
+
+    thread = std::thread(&FujiNet::readPty, this);
+    stopReading = false;
 }
 
 FujiNet::~FujiNet()
@@ -27,31 +33,28 @@ FujiNet::~FujiNet()
     stopReading = true;
 
     if (thread.joinable()) {
-		poller.abort();
 		thread.join();
 	}
 }
 
 void FujiNet::readPty()
 {
-    if (pty_fd == -1) {
-        return;
-    }
-
     getCliComm().printInfo("FujiNet: Start read loop");
-    char buf[2048];
+    char buf[MAX_BUF_LEN];
     while (!stopReading) {
-        // if (!poller.poll(pty_fd)) {
-            ssize_t len = read(pty_fd, &buf, 2048);
+        // Check if we can read; Next read() may block if not
+        if (read(pty_fd, &buf, 0) == -1) {
+            continue;
+        }
 
-            if (len > 0) {
-                getCliComm().printInfo("FujiNet: Received ", len, " bytes");
-                std::lock_guard lock(mtx);
-                for (auto i : xrange(std::min<size_t>(len, 2048 - rxBuffer.size()))) {
-                    rxBuffer.push_back(buf[i]);
-                }
+        ssize_t n = read(pty_fd, &buf, MAX_BUF_LEN);
+        if (n > 0) {
+            getCliComm().printInfo("FujiNet: Received ", n, " bytes");
+            std::lock_guard lock(mtx);
+            for (auto i : xrange(std::min<size_t>(n, MAX_BUF_LEN - rxBuffer.size()))) {
+                rxBuffer.push_back(buf[i]);
             }
-        // }
+        }
     }
 }
 
@@ -62,24 +65,18 @@ void FujiNet::reset(EmuTime time)
     }
 }
 
-// IO_OFFSET       EQU     (0x4000 + 0x3FFC)
-// IO_GETC         EQU     (IO_OFFSET + 0)
-// IO_STATUS       EQU     (IO_OFFSET + 1)
-// IO_PUTC         EQU     (IO_OFFSET + 2)
-// IO_CONTROL      EQU     (IO_OFFSET + 3)
-
 uint8_t FujiNet::readMem(uint16_t address, EmuTime time)
 {
     std::lock_guard lock(mtx);
     // getCliComm().printInfo("FujiNet: readMem() ", address);
     switch (address) {
-        case 0x7FFC: // IO_GETC
+        case IO_GETC_ADDR:
             getCliComm().printInfo("FujiNet: GETC");
             if (!rxBuffer.empty()) {
 				return rxBuffer.pop_front();
 			}
             return 0x00;
-        case 0x7FFD: // IO_STATUS
+        case IO_STATUS_ADDR:
             // getCliComm().printInfo("FujiNet: STATUS");
             if (!rxBuffer.empty()) {
                 return 0b10000000; // data available
@@ -98,8 +95,8 @@ uint8_t FujiNet::peekMem(uint16_t address, EmuTime time) const
     std::lock_guard lock(mtx);
     // getCliComm().printInfo("FujiNet: peekMem() ", address);
     switch (address) {
-        case 0x7FFC: // IO_GETC
-        case 0x7FFD: // IO_STATUS
+        case IO_GETC_ADDR:
+        case IO_STATUS_ADDR:
             if (!rxBuffer.empty()) {
                 return 0b10000000; // data available
 			}
@@ -114,7 +111,7 @@ void FujiNet::writeMem(uint16_t address, uint8_t value, EmuTime time)
     std::lock_guard lock(mtx);
     // getCliComm().printInfo("FujiNet: writeMem() ", address, " ", value);
     switch (address) {
-        case 0x7FFE: // IO_PUTC
+        case IO_PUTC_ADDR: // IO_PUTC
             if (pty_fd > -1) {
                 getCliComm().printInfo("FujiNet: PUTC ", value);
                 write(pty_fd, &value, 1);
@@ -125,27 +122,10 @@ void FujiNet::writeMem(uint16_t address, uint8_t value, EmuTime time)
     }
 }
 
-// void FujiNet::globalWrite(uint16_t address, uint8_t value, EmuTime time)
-// {
-//     getCliComm().printInfo("FujiNet: globalWrite()", address, value);
-//     switch (address) {
-//         case 0x7FFE: // IO_PUTC
-//             if (pty_fd > -1) {
-//                 std::lock_guard lock(mtx);
-//                 write(pty_fd, &value, 1);
-//             }
-//             return;
-//         default:
-//             return;
-//     }
-// }
-
 template<typename Archive>
 void FujiNet::serialize(Archive& ar, unsigned /*version*/)
 {
 	ar.template serializeBase<MSXDevice>(*this);
-
-	// ar.serialize("FujiNet", 1);
 }
 
 INSTANTIATE_SERIALIZE_METHODS(FujiNet);
