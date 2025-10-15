@@ -83,8 +83,8 @@ uint8_t FujiNet::readMem(uint16_t address, EmuTime time)
 			}
             return 0x00;
         default:
-            if (0x4000 <= address && address < 0x8000) {
-          		return rom[address & 0x3FFF];
+            if (0x4000 <= address && address < 0xC000) {
+          		return rom[address - 0x4000];
            	}
            	return 0xFF;
     }
@@ -104,6 +104,7 @@ uint8_t FujiNet::peekMem(uint16_t address, EmuTime time) const
         default:
             break;
     }
+    return 0x00;
 }
 
 void FujiNet::writeMem(uint16_t address, uint8_t value, EmuTime time)
