@@ -7,11 +7,11 @@
 
 namespace openmsx {
 
-static constexpr size_t MAX_BUF_LEN     = 4 * 1024;
-static constexpr size_t IO_GETC_ADDR    = 0x7FFC;
-static constexpr size_t IO_STATUS_ADDR  = 0x7FFD;
-static constexpr size_t IO_PUTC_ADDR    = 0x7FFE;
-static constexpr size_t IO_CONTROL_ADDR = 0x7FFF;
+static constexpr size_t MAX_BUF_LEN     = 16 * 1024;
+static constexpr size_t IO_GETC_ADDR    = 0xBFFC;
+static constexpr size_t IO_STATUS_ADDR  = 0xBFFD;
+static constexpr size_t IO_PUTC_ADDR    = 0xBFFE;
+static constexpr size_t IO_CONTROL_ADDR = 0xBFFF;
 
 FujiNet::FujiNet(DeviceConfig& config)
     : MSXDevice(config)
