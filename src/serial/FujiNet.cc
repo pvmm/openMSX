@@ -4,6 +4,7 @@
 #include "GlobalSettings.hh"
 #include "serialize.hh"
 #include <sys/_types/_ssize_t.h>
+#include <stdio.h>
 
 namespace openmsx {
 
@@ -50,6 +51,8 @@ void FujiNet::readPty()
         ssize_t n = read(pty_fd, &buf, MAX_BUF_LEN);
         if (n > 0) {
             getCliComm().printInfo("FujiNet: Received ", n, " bytes");
+            std::string str(buf, n);
+            getCliComm().printInfo(str);
             std::lock_guard lock(mtx);
             for (auto i : xrange(std::min<size_t>(n, MAX_BUF_LEN - rxBuffer.size()))) {
                 rxBuffer.push_back(buf[i]);
@@ -71,7 +74,7 @@ uint8_t FujiNet::readMem(uint16_t address, EmuTime time)
     // getCliComm().printInfo("FujiNet: readMem() ", address);
     switch (address) {
         case IO_GETC_ADDR:
-            getCliComm().printInfo("FujiNet: GETC");
+            // getCliComm().printInfo("FujiNet: GETC");
             if (!rxBuffer.empty()) {
 				return rxBuffer.pop_front();
 			}
@@ -114,7 +117,12 @@ void FujiNet::writeMem(uint16_t address, uint8_t value, EmuTime time)
     switch (address) {
         case IO_PUTC_ADDR: // IO_PUTC
             if (pty_fd > -1) {
-                getCliComm().printInfo("FujiNet: PUTC ", value);
+                char formatted[16];
+                if (value > 31 && value < 127)
+                    sprintf(formatted, "$%02X %c", value, value);
+                else
+                    sprintf(formatted, "$%02X", value);
+                getCliComm().printInfo("FujiNet: PUTC ", formatted);
                 write(pty_fd, &value, 1);
             }
             return;
