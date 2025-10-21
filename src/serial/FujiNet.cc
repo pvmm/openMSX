@@ -3,12 +3,15 @@
 
 #include "GlobalSettings.hh"
 #include "serialize.hh"
+#include <cstddef>
+#include <cstdint>
 #include <sys/_types/_ssize_t.h>
 #include <stdio.h>
 
 namespace openmsx {
 
-static constexpr size_t MAX_BUF_LEN     = 16 * 1024;
+static constexpr size_t MAX_BUF_LEN     = 64 * 1024;
+// static constexpr size_t MAX_BUF_LEN     = 256;
 static constexpr size_t IO_GETC_ADDR    = 0xBFFC;
 static constexpr size_t IO_STATUS_ADDR  = 0xBFFD;
 static constexpr size_t IO_PUTC_ADDR    = 0xBFFE;
@@ -50,7 +53,7 @@ void FujiNet::readPty()
 
         ssize_t n = read(pty_fd, &buf, MAX_BUF_LEN);
         if (n > 0) {
-            getCliComm().printInfo("FujiNet: Received ", n, " bytes");
+            getCliComm().printInfo("FujiNet: Read ", n, " bytes from pty");
             std::string str(buf, n);
             getCliComm().printInfo(str);
             std::lock_guard lock(mtx);
@@ -58,6 +61,8 @@ void FujiNet::readPty()
                 rxBuffer.push_back(buf[i]);
             }
         }
+
+        // Timer::sleep(20'000);
     }
 }
 
@@ -74,15 +79,29 @@ uint8_t FujiNet::readMem(uint16_t address, EmuTime time)
     // getCliComm().printInfo("FujiNet: readMem() ", address);
     switch (address) {
         case IO_GETC_ADDR:
-            // getCliComm().printInfo("FujiNet: GETC");
             if (!rxBuffer.empty()) {
-				return rxBuffer.pop_front();
+                uint8_t value = rxBuffer.pop_front();
+
+                char formatted[16];
+                if (value > 31 && value < 127)
+                    sprintf(formatted, "$%02X %c", value, value);
+                else
+                    sprintf(formatted, "$%02X", value);
+                getCliComm().printInfo("FujiNet: GETC -> ", formatted);
+
+				return value;
+			}
+			else {
+			    getCliComm().printInfo("FujiNet: GETC -> empty!");
 			}
             return 0x00;
         case IO_STATUS_ADDR:
-            // getCliComm().printInfo("FujiNet: STATUS");
             if (!rxBuffer.empty()) {
+                getCliComm().printInfo("FujiNet: STAT -> data available");
                 return 0b10000000; // data available
+			}
+			else {
+    			getCliComm().printInfo("FujiNet: STAT -> no data");
 			}
             return 0x00;
         default:
