@@ -143,6 +143,7 @@ void FujiNet::writeMem(uint16_t address, uint8_t value, EmuTime time)
                     sprintf(formatted, "$%02X", value);
                 getCliComm().printInfo("FujiNet: PUTC ", formatted);
                 write(pty_fd, &value, 1);
+                rxBuffer.clear();
             }
             return;
         default:
