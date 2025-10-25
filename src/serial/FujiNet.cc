@@ -5,7 +5,7 @@
 #include "serialize.hh"
 #include <cstddef>
 #include <cstdint>
-#include <sys/_types/_ssize_t.h>
+#include <sys/types.h>
 #include <stdio.h>
 
 namespace openmsx {
