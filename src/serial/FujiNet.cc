@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <sys/types.h>
+#include <sys/fcntl.h>
 #include <stdio.h>
 
 namespace openmsx {
