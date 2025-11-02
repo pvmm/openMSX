@@ -4,6 +4,7 @@
 #include "MSXCPUInterface.hh"
 #include "MSXCliComm.hh"
 #include "MSXDevice.hh"
+#include "Socket.hh"
 #include "Rom.hh"
 
 #include "circular_buffer.hh"
@@ -32,14 +33,14 @@ public:
 	void serialize(Archive& ar, unsigned version);
 
 private:
-	void readPty(); // loop of helper thread that reads from 'sockfd'
+    void close();
+	void readSocket(); // loop of helper thread that reads from socket
 
 	Rom rom;
 	std::thread thread; // receiving thread (reads from pty)
 	mutable std::mutex mtx; // to protect shared data between emulation and receiving thread
 	cb_queue<char> rxBuffer; // read/written by both the main and the receiver thread. Must hold 'mutex' while doing so.
-	int pty_fd;
-	std::string pty_name;
+	std::atomic<SOCKET> sock = OPENMSX_INVALID_SOCKET;
 	bool stopReading;
 };
 

@@ -9,10 +9,11 @@
 #include <sys/fcntl.h>
 #include <stdio.h>
 
+#define FUJINET_DEFAULT_PORT     65504
+
 namespace openmsx {
 
-static constexpr size_t MAX_BUF_LEN     = 64 * 1024;
-// static constexpr size_t MAX_BUF_LEN     = 256;
+static constexpr size_t MAX_BUF_LEN     = 2 * 1024;
 static constexpr size_t IO_GETC_ADDR    = 0xBFFC;
 static constexpr size_t IO_STATUS_ADDR  = 0xBFFD;
 static constexpr size_t IO_PUTC_ADDR    = 0xBFFE;
@@ -22,38 +23,59 @@ FujiNet::FujiNet(DeviceConfig& config)
     : MSXDevice(config)
     , rom(getName() + " ROM", "rom", config)
 {
-    pty_fd = open("/dev/ptmx", O_RDWR | O_NONBLOCK);
-    grantpt(pty_fd);
-    unlockpt(pty_fd);
-    pty_name = std::string(ptsname(pty_fd));
-
-    getCliComm().printInfo("FujiNet: opened ", pty_name);
-
-    thread = std::thread(&FujiNet::readPty, this);
+    thread = std::thread(&FujiNet::readSocket, this);
     stopReading = false;
 }
 
 FujiNet::~FujiNet()
 {
     stopReading = true;
+    close();
 
     if (thread.joinable()) {
 		thread.join();
 	}
 }
 
-void FujiNet::readPty()
+void FujiNet::close()
+{
+	auto oldSock = sock.exchange(OPENMSX_INVALID_SOCKET);
+	if (oldSock != OPENMSX_INVALID_SOCKET) {
+		sock_close(oldSock);
+	}
+}
+
+void FujiNet::readSocket()
 {
     getCliComm().printInfo("FujiNet: Start read loop");
     char buf[MAX_BUF_LEN];
-    while (!stopReading) {
-        // Check if we can read; Next read() may block if not
-        if (read(pty_fd, &buf, 0) == -1) {
-            continue;
-        }
 
-        ssize_t n = read(pty_fd, &buf, MAX_BUF_LEN);
-        if (n > 0) {
+    while (!stopReading) {
+        if (sock == OPENMSX_INVALID_SOCKET) {
+			sock = socket(AF_INET, SOCK_STREAM, 0);
+			if (sock == OPENMSX_INVALID_SOCKET) {
+				Timer::sleep(1'000'000); // retry once per second
+				continue;
+			}
+
+			sockaddr_in addr{};
+			addr.sin_family = AF_INET;
+			addr.sin_port = htons(FUJINET_DEFAULT_PORT);
+			addr.sin_addr.s_addr =
+			        htonl(INADDR_LOOPBACK); // 127.0.0.1
+			if (connect(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
+				close();
+				Timer::sleep(1'000'000); // retry once per second
+				continue;
+			}
+		}
+
+		auto n = sock_recv(sock, &buf[0], MAX_BUF_LEN);
+		if (n < 0) { // error
+			close();
+			continue;
+		}
+		else if (n > 0) {
             getCliComm().printInfo("FujiNet: Read ", n, " bytes from pty");
             std::string str(buf, n);
             getCliComm().printInfo(str);
@@ -62,16 +84,11 @@ void FujiNet::readPty()
                 rxBuffer.push_back(buf[i]);
             }
         }
-
-        // Timer::sleep(20'000);
     }
 }
 
 void FujiNet::reset(EmuTime time)
 {
-    if (pty_fd > -1) {
-        // write(pty_fd, "reset\n", 6);
-    }
 }
 
 uint8_t FujiNet::readMem(uint16_t address, EmuTime time)
@@ -136,15 +153,16 @@ void FujiNet::writeMem(uint16_t address, uint8_t value, EmuTime time)
     // getCliComm().printInfo("FujiNet: writeMem() ", address, " ", value);
     switch (address) {
         case IO_PUTC_ADDR: // IO_PUTC
-            if (pty_fd > -1) {
+            if (sock != OPENMSX_INVALID_SOCKET) {
                 char formatted[16];
                 if (value > 31 && value < 127)
                     sprintf(formatted, "$%02X %c", value, value);
                 else
                     sprintf(formatted, "$%02X", value);
                 getCliComm().printInfo("FujiNet: PUTC ", formatted);
-                write(pty_fd, &value, 1);
-                rxBuffer.clear();
+
+                auto res = sock_send(sock, reinterpret_cast<const char*>(&value), 1);
+                (void)res; // ignore error
             }
             return;
         default:
