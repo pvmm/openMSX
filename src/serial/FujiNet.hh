@@ -1,6 +1,7 @@
 #ifndef FUJINET_HH
 #define FUJINET_HH
 
+#include "FujiBusPacket.h"
 #include "MSXCPUInterface.hh"
 #include "MSXCliComm.hh"
 #include "MSXDevice.hh"
@@ -36,10 +37,23 @@ private:
     void close();
 	void readSocket(); // loop of helper thread that reads from socket
 
+	std::unique_ptr<FujiBusPacket> readBusPacket();
+	void handleDBCCommand(std::unique_ptr<FujiBusPacket> packet);
+	void fujiBusAck();
+
+	void clearUserROM();
+	void writeUserROM(std::string data);
+	void enableUserROM();
+	void disableUserROM();
+
 	Rom rom;
+	std::vector<std::uint8_t> userRom;
+	bool userRomEnabled;
 	std::thread thread; // receiving thread (reads from pty)
 	mutable std::mutex mtx; // to protect shared data between emulation and receiving thread
 	cb_queue<char> rxBuffer; // read/written by both the main and the receiver thread. Must hold 'mutex' while doing so.
+	// cb_queue<char> txBuffer;
+	// bool inSLIPPacket;
 	std::atomic<SOCKET> sock = OPENMSX_INVALID_SOCKET;
 	bool stopReading;
 };
