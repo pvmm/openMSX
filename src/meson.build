@@ -329,6 +329,7 @@ sources = files(
     'serial/DummyMidiOutDevice.cc',
     'serial/DummyRS232Device.cc',
     'serial/FujiNet.cc',
+    'serial/FujiBusPacket.cc',
     'serial/I8251.cc',
     'serial/I8254.cc',
     'serial/JVCMSXMIDI.cc',

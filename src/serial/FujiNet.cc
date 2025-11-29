@@ -1,7 +1,9 @@
 #include "FujiNet.hh"
+#include "FujiBusPacket.h"
 #include "Timer.hh"
 
 #include "GlobalSettings.hh"
+#include "fujiDeviceID.h"
 #include "serialize.hh"
 #include <cstddef>
 #include <cstdint>
@@ -22,9 +24,11 @@ static constexpr size_t IO_CONTROL_ADDR = 0xBFFF;
 FujiNet::FujiNet(DeviceConfig& config)
     : MSXDevice(config)
     , rom(getName() + " ROM", "rom", config)
+    , userRom(0)
 {
     thread = std::thread(&FujiNet::readSocket, this);
     stopReading = false;
+    userRomEnabled = false;
 }
 
 FujiNet::~FujiNet()
@@ -83,12 +87,91 @@ void FujiNet::readSocket()
             for (auto i : xrange(std::min<size_t>(n, MAX_BUF_LEN - rxBuffer.size()))) {
                 rxBuffer.push_back(buf[i]);
             }
+
+            auto packet = readBusPacket();
+            if (!packet) {
+                continue;
+            }
+
+            if (packet->device() == FUJI_DEVICEID_DBC) {
+                handleDBCCommand(std::move(packet));
+            }
         }
     }
 }
 
+void FujiNet::handleDBCCommand(std::unique_ptr<FujiBusPacket> packet)
+{
+    // Don't pass DCB commands to MSX
+    rxBuffer.clear();
+
+    switch (packet->command()) {
+        case FUJICMD_OPEN:
+            getCliComm().printInfo("FUJICMD_OPEN");
+            clearUserROM();
+            fujiBusAck();
+            break;
+        case FUJICMD_WRITE:
+            getCliComm().printInfo("FUJICMD_WRITE");
+            if (packet->data())
+                writeUserROM(*(packet->data()));
+            fujiBusAck();
+            break;
+        case FUJICMD_CLOSE:
+            getCliComm().printInfo("FUJICMD_CLOSE");
+            if (userRom.size())
+                enableUserROM();
+            fujiBusAck();
+            break;
+        default:
+            return;
+    }
+}
+
+std::unique_ptr<FujiBusPacket> FujiNet::readBusPacket()
+{
+    std::string packet = "";
+    for (auto c : rxBuffer) {
+        packet.push_back(c);
+    }
+    return FujiBusPacket::fromSerialized(packet);
+}
+
+void FujiNet::fujiBusAck()
+{
+    if (sock != OPENMSX_INVALID_SOCKET) {
+        FujiBusPacket packet(FUJI_DEVICEID_DBC, FUJICMD_ACK, "");
+        auto data = packet.serialize();
+        auto res = sock_send(sock, reinterpret_cast<const char*>(&data), data.size());
+        (void)res; // ignore error
+    }
+}
+
+void FujiNet::clearUserROM()
+{
+    userRom.clear();
+}
+
+void FujiNet::writeUserROM(std::string data)
+{
+    for (auto c : data) {
+        userRom.push_back(c);
+    }
+}
+
+void FujiNet::enableUserROM()
+{
+    userRomEnabled = true;
+}
+
+void FujiNet::disableUserROM()
+{
+    userRomEnabled = false;
+}
+
 void FujiNet::reset(EmuTime time)
 {
+    disableUserROM();
 }
 
 uint8_t FujiNet::readMem(uint16_t address, EmuTime time)
@@ -105,26 +188,29 @@ uint8_t FujiNet::readMem(uint16_t address, EmuTime time)
                     sprintf(formatted, "$%02X %c", value, value);
                 else
                     sprintf(formatted, "$%02X", value);
-                getCliComm().printInfo("FujiNet: GETC -> ", formatted);
+                // getCliComm().printInfo("FujiNet: GETC -> ", formatted);
 
 				return value;
 			}
 			else {
-			    getCliComm().printInfo("FujiNet: GETC -> empty!");
+			    // getCliComm().printInfo("FujiNet: GETC -> empty!");
 			}
             return 0x00;
         case IO_STATUS_ADDR:
             if (!rxBuffer.empty()) {
-                getCliComm().printInfo("FujiNet: STAT -> data available");
+                // getCliComm().printInfo("FujiNet: STAT -> data available");
                 return 0b10000000; // data available
 			}
 			else {
-    			getCliComm().printInfo("FujiNet: STAT -> no data");
+    			// getCliComm().printInfo("FujiNet: STAT -> no data");
 			}
             return 0x00;
         default:
             if (0x4000 <= address && address < 0xC000) {
-          		return rom[address - 0x4000];
+                if (userRomEnabled)
+                    return userRom[address - 0x4000];
+                else
+                    return rom[address - 0x4000];
            	}
            	return 0xFF;
     }
@@ -159,7 +245,32 @@ void FujiNet::writeMem(uint16_t address, uint8_t value, EmuTime time)
                     sprintf(formatted, "$%02X %c", value, value);
                 else
                     sprintf(formatted, "$%02X", value);
-                getCliComm().printInfo("FujiNet: PUTC ", formatted);
+                // getCliComm().printInfo("FujiNet: PUTC ", formatted);
+
+                // txBuffer.push_back(value);
+                // if (value == SLIP_END) {
+                //     if (inSLIPPacket) {
+                //         inSLIPPacket = false;
+
+                //         std::string packet = "";
+                //         for (auto c : txBuffer) {
+                //             packet.push_back(c);
+                //         }
+                //         auto tempFrame = FujiBusPacket::fromSerialized(packet);
+                //         if (tempFrame) {
+                //             char formatted[32];
+                //             sprintf(formatted, "\nCF: dev:%02x cmd:%02x dlen:%d\n",
+                //                         tempFrame->device(), tempFrame->command(),
+                //                         tempFrame->data() ? tempFrame->data()->size() : -1);
+                //             getCliComm().printInfo(formatted);
+                //         }
+
+                //         txBuffer.clear();
+                //     }
+                //     else {
+                //         inSLIPPacket = true;
+                //     }
+                // }
 
                 auto res = sock_send(sock, reinterpret_cast<const char*>(&value), 1);
                 (void)res; // ignore error
