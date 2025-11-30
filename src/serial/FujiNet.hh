@@ -7,6 +7,7 @@
 #include "MSXDevice.hh"
 #include "Socket.hh"
 #include "Rom.hh"
+#include "Poller.hh"
 
 #include "circular_buffer.hh"
 
@@ -50,6 +51,7 @@ private:
 	std::vector<std::uint8_t> userRom;
 	bool userRomEnabled;
 	std::thread thread; // receiving thread (reads from pty)
+	Poller poller; // to abort read-thread in a portable way
 	mutable std::mutex mtx; // to protect shared data between emulation and receiving thread
 	cb_queue<char> rxBuffer; // read/written by both the main and the receiver thread. Must hold 'mutex' while doing so.
 	// cb_queue<char> txBuffer;
