@@ -34,7 +34,7 @@ public:
 	void serialize(Archive& ar, unsigned version);
 
 private:
-    void close();
+	void close();
 	void readSocket(); // loop of helper thread that reads from socket
 
 	std::unique_ptr<FujiBusPacket> readBusPacket();
