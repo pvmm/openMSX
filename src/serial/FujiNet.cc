@@ -169,71 +169,66 @@ void FujiNet::disableUserROM()
     userRomEnabled = false;
 }
 
-void FujiNet::reset(EmuTime time)
+void FujiNet::reset(EmuTime /*time*/)
 {
     disableUserROM();
 }
 
 uint8_t FujiNet::readMem(uint16_t address, EmuTime time)
 {
-    std::lock_guard lock(mtx);
-    // getCliComm().printInfo("FujiNet: readMem() ", address);
-    switch (address) {
-        case IO_GETC_ADDR:
-            if (!rxBuffer.empty()) {
-                uint8_t value = rxBuffer.pop_front();
-
-                char formatted[16];
-                if (value > 31 && value < 127)
-                    sprintf(formatted, "$%02X %c", value, value);
-                else
-                    sprintf(formatted, "$%02X", value);
-                // getCliComm().printInfo("FujiNet: GETC -> ", formatted);
-
-				return value;
+	getCliComm().printInfo("FujiNet: readMem() ", address);
+	auto value = peekMem(address, time);
+	switch (address) {
+		case IO_GETC_ADDR:
+			if (!rxBuffer.empty()) {
+				std::lock_guard lock(mtx);
+				rxBuffer.pop_front();
+				char formatted[16];
+				if (value > 31 && value < 127) {
+					sprintf(formatted, "$%02X %c", value, value);
+				} else {
+					sprintf(formatted, "$%02X", value);
+				}
+				getCliComm().printInfo("FujiNet: GETC -> ", formatted);
+			} else {
+				getCliComm().printInfo("FujiNet: GETC -> empty!");
 			}
-			else {
-			    // getCliComm().printInfo("FujiNet: GETC -> empty!");
+			break;
+		case IO_STATUS_ADDR:
+			if (value == 0b10000000) {
+				getCliComm().printInfo("FujiNet: STAT -> data available");
+			} else {
+				getCliComm().printInfo("FujiNet: STAT -> no data");
 			}
-            return 0x00;
-        case IO_STATUS_ADDR:
-            if (!rxBuffer.empty()) {
-                // getCliComm().printInfo("FujiNet: STAT -> data available");
-                return 0b10000000; // data available
-			}
-			else {
-    			// getCliComm().printInfo("FujiNet: STAT -> no data");
-			}
-            return 0x00;
-        default:
-            if (0x4000 <= address && address < 0xC000) {
-                if (userRomEnabled)
-                    return userRom[address - 0x4000];
-                else
-                    return rom[address - 0x4000];
-           	}
-           	return 0xFF;
-    }
+	}
+	return value;
 }
 
-uint8_t FujiNet::peekMem(uint16_t address, EmuTime time) const
+uint8_t FujiNet::peekMem(uint16_t address, EmuTime /*time*/) const
 {
-    std::lock_guard lock(mtx);
-    // getCliComm().printInfo("FujiNet: peekMem() ", address);
-    switch (address) {
-        case IO_GETC_ADDR:
-        case IO_STATUS_ADDR:
-            if (!rxBuffer.empty()) {
-                return 0b10000000; // data available
+	getCliComm().printInfo("FujiNet: peekMem() ", address);
+	switch (address) {
+		case IO_GETC_ADDR: {
+			std::lock_guard lock(mtx);
+			if (!rxBuffer.empty()) {
+				return rxBuffer.front();
 			}
-            return 0x00;
-        default:
-            break;
-    }
-    return 0x00;
+			return 0x00;
+		}
+		case IO_STATUS_ADDR: {
+			std::lock_guard lock(mtx);
+			if (!rxBuffer.empty()) {
+				return 0x80; // data available
+			}
+			return 0x00;
+		}
+		default:
+			if (address < 0x4000 || 0xC000 <= address) return 0xFF;
+			return userRomEnabled ? userRom[address - 0x4000] : rom[address - 0x4000];
+	}
 }
 
-void FujiNet::writeMem(uint16_t address, uint8_t value, EmuTime time)
+void FujiNet::writeMem(uint16_t address, uint8_t value, EmuTime /*time*/)
 {
     std::lock_guard lock(mtx);
     // getCliComm().printInfo("FujiNet: writeMem() ", address, " ", value);
