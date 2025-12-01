@@ -37,8 +37,9 @@ FujiNet::~FujiNet()
     close();
 
     if (thread.joinable()) {
-		thread.join();
-	}
+        poller.abort();
+        thread.join();
+    }
 }
 
 void FujiNet::close()
@@ -73,6 +74,11 @@ void FujiNet::readSocket()
 				continue;
 			}
 		}
+#ifndef _WIN32
+		if (poller.poll(sock)) {
+			continue; // error or abort
+		}
+#endif
 
 		auto n = sock_recv(sock, &buf[0], MAX_BUF_LEN);
 		if (n < 0) { // error
