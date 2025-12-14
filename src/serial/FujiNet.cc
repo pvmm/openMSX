@@ -136,7 +136,7 @@ void FujiNet::handleDBCCommand(std::unique_ptr<FujiBusPacket> packet)
 
 std::unique_ptr<FujiBusPacket> FujiNet::readBusPacket()
 {
-    std::string packet = "";
+    ByteBuffer packet;
     for (auto c : rxBuffer) {
         packet.push_back(c);
     }
@@ -158,7 +158,7 @@ void FujiNet::clearUserROM()
     userRom.clear();
 }
 
-void FujiNet::writeUserROM(std::string data)
+void FujiNet::writeUserROM(std::span<unsigned const char> data)
 {
     for (auto c : data) {
         userRom.push_back(c);

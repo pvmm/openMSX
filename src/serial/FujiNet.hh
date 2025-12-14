@@ -43,7 +43,7 @@ private:
 	void fujiBusAck();
 
 	void clearUserROM();
-	void writeUserROM(std::string data);
+	void writeUserROM(std::span<unsigned const char> data);
 	void enableUserROM();
 	void disableUserROM();
 
