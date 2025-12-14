@@ -11,6 +11,9 @@
 #include <sys/fcntl.h>
 #include <stdio.h>
 
+#include <iostream>
+#include <sstream>
+
 #define FUJINET_DEFAULT_PORT     65504
 
 namespace openmsx {
@@ -20,6 +23,37 @@ static constexpr size_t IO_GETC_ADDR    = 0xBFFC;
 static constexpr size_t IO_STATUS_ADDR  = 0xBFFD;
 static constexpr size_t IO_PUTC_ADDR    = 0xBFFE;
 static constexpr size_t IO_CONTROL_ADDR = 0xBFFF;
+
+#define COLUMNS 16
+
+void FujiNet::hexdump(char *buffer, int count)
+{
+  std::ostringstream b;
+  int outer, inner;
+  uint8_t c;
+
+  b << "\nFujiNet: Read " << count << " bytes from pty!\n";
+  for (outer = 0; outer < count; outer += COLUMNS) {
+    for (inner = 0; inner < COLUMNS; inner++) {
+      if (inner + outer < count) {
+        c = buffer[inner + outer];
+        b << std::hex << std::setw(2) << std::setfill('0') << (int)c << " ";
+      }
+      else
+        std::cout << "   ";
+    }
+    std::cout << " |";
+    for (inner = 0; inner < COLUMNS && inner + outer < count; inner++) {
+      c = buffer[inner + outer];
+      if (c >= ' ' && c <= 0x7f)
+        b << c;
+      else
+        b << ".";
+    }
+    b << "|\n";
+  }
+  getCliComm().printInfo(b.str());
+}
 
 FujiNet::FujiNet(DeviceConfig& config)
     : MSXDevice(config)
@@ -86,9 +120,11 @@ void FujiNet::readSocket()
 			continue;
 		}
 		else if (n > 0) {
-            getCliComm().printInfo("FujiNet: Read ", n, " bytes from pty");
-            std::string str(buf, n);
-            getCliComm().printInfo(str);
+            //getCliComm().printInfo("FujiNet: Read ", n, " bytes from pty");
+            //std::cout << "FujiNet: Read " << n << " bytes from pty!\n";
+            //std::string str(buf, n);
+            hexdump(buf, n);
+            //getCliComm().printInfo(str);
             std::lock_guard lock(mtx);
             for (auto i : xrange(std::min<size_t>(n, MAX_BUF_LEN - rxBuffer.size()))) {
                 rxBuffer.push_back(buf[i]);
@@ -100,7 +136,10 @@ void FujiNet::readSocket()
             }
 
             if (packet->device() == FUJI_DEVICEID_DBC) {
+                getCliComm().printInfo("FUJI_DEVICEID_DBC");
                 handleDBCCommand(std::move(packet));
+            } else {
+		getCliComm().printInfo("NOT FUJI_DEVICEID_DBC");
             }
         }
     }
@@ -246,7 +285,7 @@ void FujiNet::writeMem(uint16_t address, uint8_t value, EmuTime /*time*/)
                     sprintf(formatted, "$%02X %c", value, value);
                 else
                     sprintf(formatted, "$%02X", value);
-                // getCliComm().printInfo("FujiNet: PUTC ", formatted);
+                getCliComm().printInfo("FujiNet: PUTC ", formatted);
 
                 // txBuffer.push_back(value);
                 // if (value == SLIP_END) {

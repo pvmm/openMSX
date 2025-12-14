@@ -46,6 +46,7 @@ private:
 	void writeUserROM(std::span<unsigned const char> data);
 	void enableUserROM();
 	void disableUserROM();
+	void hexdump(char *buf, int len);
 
 	Rom rom;
 	std::vector<std::uint8_t> userRom;
