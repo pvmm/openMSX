@@ -207,6 +207,52 @@ void ImGuiSymbols::drawContext(MSXMotherBoard* motherBoard, const SymbolRef& sym
 		auto& cpuInterface = motherBoard->getCPUInterface();
 		cpuInterface.insertBreakPoint(std::move(newBp));
 	}
+
+	ImGui::Separator();
+
+	auto expression = std::string(manager.execute(makeTclList("symboltracer", "_fetch", sym.name(symbolManager), "expression"))->getString());
+	//std::string tracingExpression(expression->getString());
+	if (ImGui::InputText(tmpStrCat("Expression##", sym.name(symbolManager)).c_str(), &expression)) {
+		manager.execute(makeTclList("symboltracer", "_replace", sym.name(symbolManager), "expression", expression));
+	}
+
+	static constexpr auto parseType = [&](zstring_view type)
+	{
+		if (type == "void") return 0;
+		if (type == "bool") return 1;
+		if (type == "int") return 2;
+		if (type == "double") return 3;
+		if (type == "string") return 4;
+	        return 5;
+	};
+	auto type_ = parseType(manager.execute(makeTclList("symboltracer", "_fetch", sym.name(symbolManager), "type"))->getString());
+	const char* typeComboStr = "void\0bool\0int\0double\0string\0-\0";
+	if (ImGui::Combo(tmpStrCat("Type##", sym.name(symbolManager)).c_str(), &type_, typeComboStr)) {
+		manager.execute(makeTclList("symboltracer", "_replace", sym.name(symbolManager), "type", getComboString(type_, typeComboStr)));
+	}
+
+	static constexpr auto parseFormat = [&](zstring_view format)
+	{
+		if (format == "bin") return 0;
+		if (format == "dec") return 1;
+		if (format == "hex") return 2;
+	        return 3;
+	};
+	auto format = parseFormat(manager.execute(makeTclList("symboltracer", "_fetch", sym.name(symbolManager), "format"))->getString());
+	const char* formatComboStr = "bin\0dec\0hex\0-\0";
+	if (ImGui::Combo(tmpStrCat("Format##", sym.name(symbolManager)).c_str(), &format, formatComboStr)) {
+		manager.execute(makeTclList("symboltracer", "_replace", sym.name(symbolManager), "format", getComboString(format, formatComboStr)));
+	}
+
+	auto cmdResult = manager.execute(makeTclList("symboltracer", "list", sym.name(symbolManager)));
+	bool traceAsFunction = cmdResult && cmdResult->getString().size() > 0;
+	if (ImGui::Checkbox("Trace as a function", &traceAsFunction)) {
+		TclObject cmd = makeTclList("symboltracer", traceAsFunction ? "add" : "remove", sym.name(symbolManager));
+		if (traceAsFunction) {
+			cmd.addListElement(sym.value(symbolManager));
+		}
+		manager.execute(cmd);
+	}
 }
 
 template<bool FILTER_FILE>
