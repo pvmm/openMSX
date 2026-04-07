@@ -8,7 +8,7 @@ namespace export add list remove start stop
 namespace ensemble create -prefixes 0
 
 variable names {}         ;# user traces
-variable counters {}      ;# count recursive calls
+variable context {}       ;# store expression result from recursive calls
 variable symbolfiles {}   ;# symbols file name
 
 set_help_proc symboltracer [namespace code symboltracer_help]
@@ -63,45 +63,57 @@ proc _enter_function {name} {
 	# check if we create caller breakpoint for CALL or RST
 	if {[peek [expr {$retaddr - 1}]] in "0 8 16 24 32 40 48 56" ||
 	    [peek [expr {$retaddr - 3}]] in "196 204 205 212 220 228 236 244 252"} {
-		variable counters
-		dict incr counters $name
-		set count [dict get $counters $name]
-		debug trace add $name $count
+		variable names
+		variable context
+		if {[dict get $names $name expression] ne {}} {
+			# evaluate expression and update user trace
+			set result [uplevel #0 [dict get $names $name expression]]
+			dict with names $name {
+				debug trace add $name $result -type $type -format $format
+			}
+		} else {
+			# update context value and update user trace
+			set result [expr [lindex [dict get $context $name] end] + 1]
+			debug trace add $name $result
+		}
+		dict lappend context $name $result
 		debug breakpoint create -once true -address $retaddr -command [namespace code "_exit_function {$name}"]
 	}
 }
 
 proc _exit_function {name} {
-	variable counters
-	# ignore a probable dangling breakpoint from a previous session
-	if {![dict exists $counters $name]} { return }
-	dict incr counters $name -1
-	set count [dict get $counters $name]
-	if {$count == 0} {
-		dict unset counters $name
-		debug trace add $name
-	} else {
-		debug trace add $name $count
-	}
+	variable context
+	# ignore a probable dangling breakpoint (from a previous session?)
+	if {![dict exists $context $name]} { return }
+	variable names
+	# remove last item from context
+	dict set context $name [lreplace [dict get $context $name] end end]
+	# update user trace with last value
+	set old_value [lindex [dict get $context $name] end]
+	debug trace add $name $old_value
 }
 
-proc add {name addr} {
+proc add {name addr {expression {}} {type int} {format dec}} {
 	# add user-defined name/addr pair and create function breakpoints and traces
 	variable names
-	if {![dict exists $names $name]} {
-		set bp [debug breakpoint create -address $addr -command [namespace code "_enter_function {$name}"]]
-		dict set names $name [::list $addr $bp]
-		debug trace add $name
-
+	# replace old entry
+	if {[dict exists $names $name]} {
+		debug breakpoint remove [dict get $names $name bp]
+		debug trace drop $name
 	}
+
+	variable context
+	dict lappend context $name 0
+	set bp [debug breakpoint create -address $addr -command [namespace code "_enter_function {$name}"]]
+	dict set names $name [dict create bp $bp expression $expression type $type format $format]
+	debug trace add $name 0 -type bool
 }
 
 proc remove {name} {
 	variable names
 	if {[dict exists $names $name]} {
-		lassign [dict get $names $name] addr bp
 		debug trace drop $name
-		debug breakpoint remove $bp
+		debug breakpoint remove [dict get $names $name bp]
 		dict unset names $name
 	}
 }
@@ -145,8 +157,8 @@ proc start {{file ""}} {
 }
 
 proc stop {} {
-	variable counters
-	set counters {}
+	variable context
+	set context {}
 
 	variable names
 	dict for {name _} $names {
