@@ -4,7 +4,7 @@
 # to register functions.
 
 namespace eval symboltracer {
-namespace export add list remove start stop
+namespace export add list remove start stop _fetch _replace
 namespace ensemble create -prefixes 0
 
 variable names {}         ;# user traces
@@ -127,6 +127,36 @@ proc list {{name {}}} {
 		}
 	} else {
 		return [dict keys $names]
+	}
+}
+
+# used internally (ImGUI)
+proc _fetch {name key} {
+	variable names
+	if {![dict exists $names $name]} { return }
+	return [dict get $names $name $key]
+}
+
+# used internally (ImGUI)
+proc _replace {name key value} {
+	variable names
+	if {![dict exists $names $name]} { return }
+	# get address back
+	set tmp {*}[debug symbols lookup -name $name]
+
+	dict with names $name {
+		switch -- $key {
+			expression {
+				set expression $value
+			}
+			type {
+				set type $value
+			}
+			format {
+				set format $value
+			}
+		}
+		add $name [dict get $tmp value] $expression $type $format
 	}
 }
 
