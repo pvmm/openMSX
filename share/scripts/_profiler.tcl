@@ -8,7 +8,7 @@ namespace export add list remove start stop
 namespace ensemble create -prefixes 0
 
 variable names {}         ;# user traces
-variable context {}       ;# store expression result from recursive calls
+variable context {}       ;# store expressions from recursive calls as a stack
 variable symbolfiles {}   ;# symbols file name
 
 set_help_proc symboltracer [namespace code symboltracer_help]
@@ -72,10 +72,11 @@ proc _enter_function {name} {
 				debug trace add $name $result -type $type -format $format
 			}
 		} else {
-			# update context value and update user trace
+			# update recursion count and update user trace
 			set result [expr [lindex [dict get $context $name] end] + 1]
 			debug trace add $name $result
 		}
+		# push into the context stack
 		dict lappend context $name $result
 		debug breakpoint create -once true -address $retaddr -command [namespace code "_exit_function {$name}"]
 	}
@@ -86,7 +87,7 @@ proc _exit_function {name} {
 	# ignore a probable dangling breakpoint (from a previous session?)
 	if {![dict exists $context $name]} { return }
 	variable names
-	# remove last item from context
+	# pop last item from the context stack
 	dict set context $name [lreplace [dict get $context $name] end end]
 	# update user trace with last value
 	set old_value [lindex [dict get $context $name] end]
