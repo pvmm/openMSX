@@ -12,6 +12,14 @@ namespace openmsx {
 class RomBlockDebuggableBase : public SimpleDebuggable
 {
 public:
+	explicit RomBlockDebuggableBase(const MSXDevice& device, std::string name_)
+		: SimpleDebuggable(
+			device.getMotherBoard(),
+			name_,
+		        "Shows for each byte of the mapper which memory block is selected.",
+		        0x10000)
+	{
+	}
 	explicit RomBlockDebuggableBase(const MSXDevice& device)
 		: SimpleDebuggable(
 			device.getMotherBoard(),
@@ -38,6 +46,17 @@ protected:
 class RomBlockDebuggable final : public RomBlockDebuggableBase
 {
 public:
+	RomBlockDebuggable(const MSXDevice& device, const std::string name_,
+	                   std::span<const byte> blockNr_,
+	                   unsigned startAddress_, unsigned mappedSize_,
+	                   unsigned bankSizeShift_, unsigned debugShift_ = 0)
+		: RomBlockDebuggableBase(device, name_)
+		, blockNr(blockNr_.data()), startAddress(startAddress_)
+		, mappedSize(mappedSize_), bankSizeShift(bankSizeShift_)
+		, debugShift(debugShift_), debugMask(~((1 << debugShift) - 1))
+	{
+		assert((mappedSize >> bankSizeShift) == blockNr_.size()); // no need to include 'debugMask' here
+	}
 	RomBlockDebuggable(const MSXDevice& device, std::span<const byte> blockNr_,
 	                   unsigned startAddress_, unsigned mappedSize_,
 	                   unsigned bankSizeShift_, unsigned debugShift_ = 0)
@@ -63,7 +82,7 @@ public:
 	[[nodiscard]] unsigned readExt(unsigned address) override
 	{
 		unsigned addr = address - startAddress;
-		if (addr < mappedSize) {
+		if (addr < mappedSize) { // 0x0000 -> 0x4000 // 14
 			byte tmp = blockNr[(addr >> bankSizeShift) & debugMask];
 			return (tmp != 255) ? (tmp >> debugShift) : tmp;
 		} else {

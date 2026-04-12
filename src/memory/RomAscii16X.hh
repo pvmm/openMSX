@@ -4,6 +4,7 @@
 #include "AmdFlash.hh"
 #include "MSXRom.hh"
 #include "RomBlockDebuggable.hh"
+#include "RomBlockDebuggableExt.hh"
 
 #include <array>
 
@@ -33,9 +34,13 @@ private:
 		[[nodiscard]] unsigned readExt(unsigned address) override;
 	} debuggable;
 
+	RomBlockDebuggable debuggableExt;
+
 	AmdFlash flash;
 
 	std::array<uint16_t, 2> bankRegs = {0, 0};
+	std::array<uint8_t, 2> mappedLow = {0, 0};
+	std::array<uint8_t, 2> mappedHigh = {0, 0};
 };
 
 } // namespace openmsx

@@ -22,6 +22,7 @@ namespace openmsx {
 RomAscii16X::RomAscii16X(DeviceConfig& config, Rom&& rom_)
 	: MSXRom(config, std::move(rom_))
 	, debuggable(*this)
+	, debuggableExt(*this, getName() + " romext", mappedHigh, 0x4000, 0x8000, 14)
 	, flash(rom, AmdFlashChip::S29GL064S70TFI040, {}, config)
 {
 	reset(EmuTime::dummy());
@@ -38,8 +39,18 @@ void RomAscii16X::reset(EmuTime /*time*/)
 
 unsigned RomAscii16X::getFlashAddr(uint16_t addr) const
 {
-	uint16_t bank = bankRegs[((addr >> 14) & 1) ^ 1];
-	return (bank << 14) | (addr & 0x3FFF);
+	const uint16_t index = ((addr >> 14) & 1) ^ 1;
+	// new
+	uint16_t bank1 = (mappedHigh[index] << 8) | mappedLow[index];
+	unsigned tmp1 = (bank1 << 14) | (addr & 0x3FFF);
+	// old
+	uint16_t bank2 = bankRegs[index];
+	// "(addr >> 14 & 1) ^ 1" defines a page
+	// 0x0000 -> 1, 0x4000 -> 0, 0x8000 -> 1, 0xc000 -> 0
+	unsigned tmp2 = (bank2 << 14) | (addr & 0x3FFF);
+	// compare
+std::cout << std::hex << addr << ": getFlashAddr(" << tmp1 << ", " << tmp2 << ")\n";
+	return tmp2;
 }
 
 byte RomAscii16X::readMem(uint16_t addr, EmuTime time)
@@ -62,10 +73,18 @@ void RomAscii16X::writeMem(uint16_t addr, byte value, EmuTime time)
 	flash.write(getFlashAddr(addr), value, time);
 
 	if ((addr & 0x3FFF) >= 0x2000) {
-		const uint16_t index = (addr >> 12) & 1;
-		bankRegs[index] = (addr & 0x0F00) | value;
+		const uint16_t index = (addr >> 12) & 1; // 0x6000 -> 0 ou 0x7000 -> 1
+		// new
+		mappedLow[index] = value;
+		mappedHigh[index] = (addr >> 8) & 0x0F;
+		unsigned tmp1 = (mappedHigh[index] << 8) | mappedLow[index];
+		// old
+		unsigned tmp2 = (addr & 0x0F00) | value; // banknumber (lsb + msb)
+		bankRegs[index] = tmp2; // banknumber (lsb + msb)
 		invalidateDeviceRCache(0x4000 ^ (index << 14), 0x4000);
 		invalidateDeviceRCache(0xC000 ^ (index << 14), 0x4000);
+		// compare
+std::cout << std::hex << addr << ": writeMem(" << tmp1 << ", " << tmp2 << ")\n";
 	}
 }
 
@@ -77,7 +96,14 @@ byte* RomAscii16X::getWriteCacheLine(uint16_t /* addr */)
 unsigned RomAscii16X::Debuggable::readExt(unsigned address)
 {
 	auto& outer = OUTER(RomAscii16X, debuggable);
-	return outer.bankRegs[((address >> 14) & 1) ^ 1];
+	uint8_t index = ((address >> 14) & 1) ^ 1;
+	// new
+	unsigned tmp1 = (outer.mappedHigh[index] << 8) | outer.mappedLow[index];
+	// old
+	unsigned tmp2 = outer.bankRegs[index];
+	// compare
+std::cout << std::hex << address << ": readExt(" << tmp1 << ", " << tmp2 << ")\n";
+	return tmp2;
 }
 
 template<typename Archive>

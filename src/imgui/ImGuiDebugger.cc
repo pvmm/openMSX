@@ -459,6 +459,7 @@ ImGuiDebugger::SlotInfo ImGuiDebugger::getSlotInfo(MSXCPUInterface& cpuInterface
 		}
 
 		const auto* device = cpuInterface.getVisibleMSXDevice(page);
+		// TODO: change here
 		if (const auto* mapper = dynamic_cast<const MSXMemoryMapperBase*>(device)) {
 			r.segment = strCat(mapper->getSelectedSegment(page));
 		} else if (auto [rom, romBlocks] = ImGuiDisassembly::getRomBlocks(debugger, device); romBlocks) {
