@@ -2,42 +2,65 @@
 #define ROMBLOCKDEBUGGABLE_HH
 
 #include "MSXDevice.hh"
+#include "MSXRom.hh"
 #include "SimpleDebuggable.hh"
+#include "outer.hh"
 
 #include <span>
 #include <string>
 
 namespace openmsx {
 
-class RomBlockDebuggableBase : public SimpleDebuggable
+class RomBlockDebuggableBase
 {
 public:
-	explicit RomBlockDebuggableBase(const MSXDevice& device, std::string name_)
-		: SimpleDebuggable(
-			device.getMotherBoard(),
-			name_,
-		        "Shows for each byte of the mapper which memory block is selected.",
-		        0x10000)
-	{
-	}
 	explicit RomBlockDebuggableBase(const MSXDevice& device)
-		: SimpleDebuggable(
+		: debuggable(
 			device.getMotherBoard(),
 			device.getName() + " romblocks",
-		        "Shows for each byte of the mapper which memory block is selected.",
-		        0x10000)
+			"Shows for each byte of the mapper which memory block is selected.")
+		, debuggable16(
+			device.getMotherBoard(),
+			device.getName() + " romblocks16",
+			"Shows for each byte of the mapper which memory block is selected (16-bit version).")
 	{
-	}
-
-	// For the 'Debuggable' interface we need to have an 8-bit read(). For most mappers that's sufficient.
-	[[nodiscard]] byte read(unsigned address) override {
-		return narrow_cast<byte>(readExt(address));
 	}
 
 	// To support larger than 8 bit segment numbers.
 	[[nodiscard]] virtual unsigned readExt(unsigned address) = 0;
 
 protected:
+        struct Debuggable : SimpleDebuggable {
+                explicit Debuggable(MSXMotherBoard& motherBoard_, const std::string name_, static_string_view description_)
+			: SimpleDebuggable(
+				motherBoard_,
+				name_,
+				description_,
+				0x10000)
+		{
+		}
+		[[nodiscard]] byte read(unsigned address) override
+		{
+			auto& outer = OUTER(RomBlockDebuggableBase, debuggable);
+			return narrow_cast<byte>(outer.readExt(address));
+		}
+        } debuggable;
+
+        struct DebuggableExt final : Debuggable {
+                explicit DebuggableExt(MSXMotherBoard& motherBoard_, const std::string name_, static_string_view description_)
+			: Debuggable(motherBoard_, name_, description_)
+		{
+		}
+		[[nodiscard]] byte read(unsigned address) override
+		{
+			auto& outer = OUTER(RomBlockDebuggableBase, debuggable16);
+			return narrow_cast<byte>(address & 1 ? outer.readExt(address) >> 8 : outer.readExt(address));
+		}
+        } debuggable16;
+
+	std::array<uint8_t, 2> mappedLow = {0, 0};
+	std::array<uint8_t, 2> mappedHigh = {0, 0};
+
 	~RomBlockDebuggableBase() = default;
 };
 
