@@ -11,6 +11,7 @@
 namespace openmsx {
 
 class Debugger;
+class Debuggable;
 class MSXDevice;
 class MSXCPUInterface;
 class MSXRom;
@@ -35,7 +36,7 @@ public:
 
 public:
 	void actionToggleBp(MSXMotherBoard& motherBoard);
-	[[nodiscard]] static std::pair<const MSXRom*, RomBlockDebuggableBase*>
+	[[nodiscard]] static std::pair<const MSXRom*, Debuggable*>
 		getRomBlocks(Debugger& debugger, const MSXDevice* device);
 
 private:
