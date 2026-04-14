@@ -32,8 +32,7 @@ private:
 			: RomBlockDebuggableBase(device) {}
 		[[nodiscard]] unsigned readExt(unsigned address) override;
 
-		std::array<uint8_t, 2> mappedLow = {0, 0};
-		std::array<uint8_t, 2> mappedHigh = {0, 0};
+		std::array<uint16_t, 2> bankRegs = {0, 0};
 	} romBlockDebug;
 
 	AmdFlash flash;

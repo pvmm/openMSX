@@ -29,8 +29,7 @@ RomAscii16X::RomAscii16X(DeviceConfig& config, Rom&& rom_)
 
 void RomAscii16X::reset(EmuTime /*time*/)
 {
-	std::ranges::fill(romBlockDebug.mappedHigh, 0);
-	ranges::iota(romBlockDebug.mappedLow, uint8_t(0));
+	ranges::iota(romBlockDebug.bankRegs, uint16_t(0));
 
 	flash.reset();
 
@@ -39,8 +38,7 @@ void RomAscii16X::reset(EmuTime /*time*/)
 
 unsigned RomAscii16X::getFlashAddr(uint16_t addr) const
 {
-	const uint16_t index = ((addr >> 14) & 1) ^ 1;
-	uint16_t bank = (romBlockDebug.mappedHigh[index] << 8) | romBlockDebug.mappedLow[index];
+	uint16_t bank = romBlockDebug.bankRegs[((addr >> 14) & 1) ^ 1];
 	return (bank << 14) | (addr & 0x3FFF);
 }
 
@@ -65,8 +63,7 @@ void RomAscii16X::writeMem(uint16_t addr, byte value, EmuTime time)
 
 	if ((addr & 0x3FFF) >= 0x2000) {
 		const uint16_t index = (addr >> 12) & 1;
-		romBlockDebug.mappedLow[index] = value;
-		romBlockDebug.mappedHigh[index] = (addr >> 8) & 0x0F;
+		romBlockDebug.bankRegs[index] = (addr & 0x0F00) | value;
 		invalidateDeviceRCache(0x4000 ^ (index << 14), 0x4000);
 		invalidateDeviceRCache(0xC000 ^ (index << 14), 0x4000);
 	}
@@ -80,7 +77,7 @@ byte* RomAscii16X::getWriteCacheLine(uint16_t /* addr */)
 unsigned RomAscii16X::Blocks::readExt(unsigned address)
 {
 	uint8_t index = ((address >> 14) & 1) ^ 1;
-	return (mappedHigh[index] << 8) | mappedLow[index];
+	return bankRegs[index];
 }
 
 template<typename Archive>
@@ -90,8 +87,7 @@ void RomAscii16X::serialize(Archive& ar, unsigned /*version*/)
 	ar.template serializeBase<MSXDevice>(*this);
 
 	ar.serialize("flash",       flash,
-	             "mappedLow",   romBlockDebug.mappedLow,
-	             "mappedHigh",  romBlockDebug.mappedHigh);
+	             "bankRegs",    romBlockDebug.bankRegs);
 }
 INSTANTIATE_SERIALIZE_METHODS(RomAscii16X);
 REGISTER_MSXDEVICE(RomAscii16X, "RomAscii16X");

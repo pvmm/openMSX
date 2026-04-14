@@ -29,20 +29,16 @@ public:
 	// To support larger than 8 bit segment numbers.
 	[[nodiscard]] virtual unsigned readExt(unsigned address) = 0;
 
-protected:
         struct Debuggable : SimpleDebuggable {
                 explicit Debuggable(MSXMotherBoard& motherBoard_, const std::string name_, static_string_view description_)
-			: SimpleDebuggable(
-				motherBoard_,
-				name_,
-				description_,
-				0x10000)
+			: SimpleDebuggable(motherBoard_, name_, description_, 0x10000)
 		{
 		}
 		[[nodiscard]] byte read(unsigned address) override
 		{
 			auto& outer = OUTER(RomBlockDebuggableBase, debuggable);
-			return narrow_cast<byte>(outer.readExt(address));
+			// adjust address to always return LSB of bankRegs
+			return narrow_cast<byte>(outer.readExt(address & ~1));
 		}
         } debuggable;
 
@@ -54,13 +50,18 @@ protected:
 		[[nodiscard]] byte read(unsigned address) override
 		{
 			auto& outer = OUTER(RomBlockDebuggableBase, debuggable16);
+			// extend read to return LSB or MSB according to even/odd address
 			return narrow_cast<byte>(address & 1 ? outer.readExt(address) >> 8 : outer.readExt(address));
+		}
+		// extend DebuggableExt interface to access outer function from debuggable
+		[[nodiscard]] unsigned readExt(unsigned address)
+		{
+			auto& outer = OUTER(RomBlockDebuggableBase, debuggable16);
+			return outer.readExt(address);
 		}
         } debuggable16;
 
-	std::array<uint8_t, 2> mappedLow = {0, 0};
-	std::array<uint8_t, 2> mappedHigh = {0, 0};
-
+protected:
 	~RomBlockDebuggableBase() = default;
 };
 

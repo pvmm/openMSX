@@ -2,6 +2,7 @@
 #define IMGUI_DISASSEMBLY_HH
 
 #include "ImGuiPart.hh"
+#include "RomBlockDebuggable.hh"
 
 #include <optional>
 #include <span>
@@ -36,7 +37,7 @@ public:
 
 public:
 	void actionToggleBp(MSXMotherBoard& motherBoard);
-	[[nodiscard]] static std::pair<const MSXRom*, Debuggable*>
+	[[nodiscard]] static std::pair<const MSXRom*, RomBlockDebuggableBase::DebuggableExt*>
 		getDebuggable(Debugger& debugger, const MSXDevice* device);
 
 private:
