@@ -361,6 +361,8 @@ void ImGuiManager::executeDelayed(TclObject command,
 	executeDelayed([this, command, ok, error]() mutable {
 		try {
 			auto result = command.executeCommand(getInterpreter());
+			auto msx = result.getBinary();
+std::cout << "result:" << msx[0] << "," << "\n";
 			if (ok) ok(result);
 		} catch (CommandException& e) {
 			if (error) error(e.getMessage());
@@ -409,7 +411,7 @@ bool ImGuiManager::signalEvent(const Event& event)
 				std::swap(delayedActionQueue, delayedActionQueue2);
 				assert(delayedActionQueue.empty());
 				for (auto& action : delayedActionQueue2) {
-					std::invoke(action);
+					std::invoke(action); //here!
 				}
 				delayedActionQueue2.clear();
 			}

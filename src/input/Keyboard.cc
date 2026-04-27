@@ -1776,6 +1776,7 @@ void Keyboard::Msxcode2UnicodeCmd::execute(std::span<const TclObject> tokens, Tc
 	const auto& keyboard = OUTER(Keyboard, msxcode2UnicodeCmd);
 	const auto& msxChars = keyboard.unicodeKeymap.getMsxChars();
 
+std::cout << "tokens[1] = " << (void*)&tokens[1] << "\n";
 	auto msx = tokens[1].getBinary();
 	auto fallback = [&] -> std::function<uint32_t(uint8_t)> {
 		if (tokens.size() < 3) {
