@@ -17,6 +17,7 @@ File::File() = default;
 
 [[nodiscard]] static std::unique_ptr<FileBase> init(zstring_view filename, File::OpenMode mode)
 {
+	assert(false);
 	static constexpr std::array<uint8_t, 3> GZ_HEADER  = {0x1F, 0x8B, 0x08};
 	static constexpr std::array<uint8_t, 4> ZIP_HEADER = {0x50, 0x4B, 0x03, 0x04};
 

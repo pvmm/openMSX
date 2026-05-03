@@ -28,12 +28,16 @@ public:
 	[[nodiscard]] unsigned get32LE();
 	[[nodiscard]] std::string getString(size_t len);
 	[[nodiscard]] std::string getCString();
+	[[nodiscard]] long tell();
+	long seek(long, int whence);
 
 	[[nodiscard]] MemBuffer<uint8_t> inflate(size_t sizeHint = 65536);
 
 private:
 	z_stream s;
 	bool wasInit;
+	const unsigned char* start;
+	long length;
 };
 
 } // namespace openmsx

@@ -120,8 +120,10 @@ bool CommandLineParser::parseFileName(const std::string& arg, std::span<std::str
 
 CLIFileType* CommandLineParser::getFileTypeHandlerForFileName(std::string_view filename) const
 {
+	std::cout << "getFileTypeHandlerForFileName: filename: " << filename << std::endl;
 	auto inner = [&](std::string_view arg) -> CLIFileType* {
 		std::string_view extension = FileOperations::getExtension(arg); // includes leading '.' (if any)
+std::cout << "extension? " << extension << std::endl;
 		if (extension.size() <= 1) {
 			return nullptr; // no extension -> no handler
 		}
@@ -129,28 +131,38 @@ CLIFileType* CommandLineParser::getFileTypeHandlerForFileName(std::string_view f
 
 		auto f = binary_find(fileTypes, extension, StringOp::caseless{},
 		                     &FileTypeData::extension);
+		if (f) std::cout << "xxx " << f->extension << std::endl;
 		return f ? f->fileType : nullptr;
 	};
 
+	for (auto &x: fileTypes) {
+		std::cout << "x: " << x.extension << "\n";
+	}
 	// First try the fileName as we get it from the command line. This may
 	// be more interesting than the original fileName of a (g)zipped file:
 	// in case of an OMR file for instance, we want to select on the
 	// original extension, and not on the extension inside the (g)zipped
 	// file.
 	auto* result = inner(filename);
+	std::cout << "result: " << (void*)result << "\n";
 	if (!result) {
 		try {
 			File file(userFileContext().resolve(filename));
+			//std::cout << "filename " << filename << ", original: " << file.getOriginalName() << std::endl;
 			result = inner(file.getOriginalName());
-		} catch (FileException&) {
+		} catch (FileException& e) {
 			// ignore
+			std::cout << "exception: " << e.getMessage() << "\n";
 		}
+	} else {
+		std::cout << "result: not found!\n";
 	}
 	return result;
 }
 
 void CommandLineParser::parse(std::span<char*> argv)
 {
+	std::cout << "::parse\n";
 	parseStatus = Status::RUN;
 
 	auto cmdLineBuf = to_vector(std::views::transform(std::views::drop(argv, 1), [](const char* a) {
@@ -293,7 +305,7 @@ void CommandLineParser::parse(std::span<char*> argv)
 	}
 	if (!cmdLine.empty() && (parseStatus != Status::EXIT)) {
 		throw FatalError(
-			"Error parsing command line: ", cmdLine.front(), "\n"
+			"Error parsing command line2: ", cmdLine.front(), "\n"
 			"Use \"openmsx -h\" to see a list of available options");
 	}
 }

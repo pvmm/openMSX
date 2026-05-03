@@ -17,6 +17,8 @@ ZlibInflate::ZlibInflate(std::span<const uint8_t> input)
 	}
 	auto inputLen = static_cast<decltype(s.avail_in)>(input.size());
 
+	start = input.data();
+	length = inputLen;
 	s.zalloc = nullptr;
 	s.zfree  = nullptr;
 	s.opaque = nullptr;
@@ -45,6 +47,27 @@ uint8_t ZlibInflate::getByte()
 	}
 	--s.avail_in;
 	return *(s.next_in++);
+}
+
+long ZlibInflate::tell()
+{
+	return std::distance(start, s.next_in);
+}
+
+long ZlibInflate::seek(long pos, int whence)
+{
+	switch (whence) {
+	case SEEK_SET:
+		s.next_in = start + pos;
+		break;
+	case SEEK_CUR:
+		s.next_in = s.next_in + pos;
+		break;
+	case SEEK_END:
+	       s.next_in = start + length + pos;
+	       break;
+	}
+	return 0;
 }
 
 unsigned ZlibInflate::get16LE()
