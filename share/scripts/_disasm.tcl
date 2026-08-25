@@ -277,36 +277,30 @@ proc step_over {} {
 
 
 #
+# is_block_repeat
+#
+proc is_block_repeat {instr} {
+	expr {[string match "ldir*" $instr] || [string match "lddr*" $instr] ||
+	      [string match "cpir*" $instr] || [string match "cpdr*" $instr] ||
+	      [string match "inir*" $instr] || [string match "indr*" $instr] ||
+	      [string match "otir*" $instr] || [string match "otdr*" $instr]}
+}
+
+
+#
 # step_back
 #
 set_help_text step_back \
 {Step back. Go back in time till right before the last instruction was
 executed. Note that this operation is relatively slow (compared to the other
 step functions). Also the reverse feature must be enabled for this to work
-(normally it's enabled by default).}
-proc step_back {} {
-	# In the past this proc was implemented totally different. It's worth
-	# mentioning this old algorithm and explain why it wasn't good enough.
-	# The old algorithm went like this:
-	#  - take small steps back till we're not at the start instruction
-	#    anymore (this works because 'reverse goto' only stops after
-	#    emulating a full instruction)
-	# The problem was that on R800 it could take _many_ (more than 80)
-	# steps till the destination was reached.
-	#
-	# The current algorithm goes like this:
-	#  - take a large step back
-	#  - take small steps forward till we're back at the start
-	#  - we now know where the previous instruction started, so go there
-	#    (= take a small step back again)
-	#
-	# So the old algorithm takes (potentially) many backwards steps. While
-	# the new algorithm takes exactly 2 backwards steps and (potentially)
-	# many forward steps. In the current openMSX implementation, (small)
-	# forward steps are orders of magnitude faster than backwards steps (an
-	# optimization I added specifically for this use case). So the worst
-	# execution time should now be much better.
+(normally it's enabled by default).
 
+When the current instruction is a block repeat instruction (LDIR, LDDR,
+CPIR, CPDR, INIR, INDR, OTIR, OTDR), step_back will rewind to before the
+entire block instruction started (i.e. to the point before the first
+iteration), rather than just going back one iteration.}
+proc step_back {} {
 	# 'z80' or 'r800'
 	set cpu [get_active_cpu]
 
@@ -320,6 +314,11 @@ proc step_back {} {
 	#  a safety margin in case I forgot some extra penalty cycles (e.g.
 	#  access to a device that inserts extra wait cycles).
 	set max_instr_len [expr {(($cpu eq "z80") ? 35 : 100) * $cycle_period}]
+
+	# Check if the current instruction is a block repeat instruction.
+	set current_addr [reg PC]
+	set current_instr [lindex [debug disasm $current_addr] 0]
+	set is_block [is_block_repeat $current_instr]
 
 	# Get time of the start instruction.
 	set start [dict get [reverse status] "current"]
@@ -359,6 +358,60 @@ proc step_back {} {
 	# The previous step was the correct one, so go back there.
 	# Note that (only here) we don't pass the '-novideo' flag
 	reverse goto $curr
+
+	# If the current instruction is a block repeat instruction, we just
+	# went back one iteration. Instead, rewind to before the first
+	# iteration of the block instruction started.
+	if {$is_block} {
+		# Measure the time per iteration of this block instruction.
+		set time_after_first [dict get [reverse status] "current"]
+		set time_per_iter [expr {$start - $time_after_first}]
+
+		# Determine the iteration counter for this block instruction.
+		# LDIR/LDDR/CPIR/CPDR use the full BC register as counter.
+		# INIR/INDR/OTIR/OTDR use only the B register.
+		if {[string match "ld*i*" $current_instr] ||
+		    [string match "ld*d*" $current_instr] ||
+		    [string match "cp*i*" $current_instr] ||
+		    [string match "cp*d*" $current_instr]} {
+			set counter [reg BC]
+		} else {
+			set counter [reg B]
+		}
+
+		# Safety: ensure we always make at least a tiny progress.
+		if {$time_per_iter < $cycle_period} {
+			set time_per_iter $cycle_period
+		}
+
+		# Go back approximately (counter - 1) iterations from our
+		# current position. We already went back 1 iteration, so we
+		# need (counter - 1) more. Add max_instr_len as safety margin
+		# for the initial backward jump (same as the non-block case).
+		set goback_time [expr {$max_instr_len + ($counter - 1) * $time_per_iter}]
+		reverse goback -novideo $goback_time
+
+		# Now step forward to find the exact instruction boundary.
+		# We want the boundary where the instruction is NOT the block
+		# repeat (i.e. the instruction just before it).
+		set curr [dict get [reverse status] "current"]
+		while {1} {
+			reverse goto -novideo [expr {$curr + $cycle_period}]
+			set next [dict get [reverse status] "current"]
+			set check_instr [lindex [debug disasm [reg PC]] 0]
+			if {![is_block_repeat $check_instr]} {
+				break
+			}
+			if {$next == $curr} {
+				error "Internal error: no forward progress in block step-back"
+			}
+			set curr $next
+		}
+
+		# Go to the found instruction boundary.
+		# Note that (only here) we don't pass the '-novideo' flag
+		reverse goto $curr
+	}
 }
 
 
