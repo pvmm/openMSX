@@ -382,7 +382,11 @@ proc step_back {} {
 		# no longer points to the block instruction address.
 		set goback [expr {$time_per_iter * 8}]
 		while {[reg PC] == $current_addr} {
+			set check_time_lock [machine_info time]
 			reverse goback -novideo $goback
+			if {$check_time_lock == [machine_info time]} {
+				error "Internal error: reverse system record unavailable for the time frame"
+			}
 			set goback [expr {$goback * 2}]
 		}
 
