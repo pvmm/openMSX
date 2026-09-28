@@ -430,15 +430,6 @@ proc step_back {} {
 		# is therefore one iteration's duration.
 		set current_addr [reg PC]
 		set time_after_first [dict get [reverse status] "current"]
-		set time_per_iter [expr {$start - $time_after_first}]
-
-		# Safety: ensure we always make at least a tiny progress.
-		# Normally time_per_iter > 0, but clamp against a zero/negative
-		# measurement (e.g. mid-instruction watchpoint overshoot) so the
-		# exponential search below cannot stall with a zero stride.
-		if {$time_per_iter < $cycle_period} {
-			set time_per_iter $cycle_period
-		}
 
 		# Go back past all iterations of the block instruction using
 		# exponential backoff (O(log N) reverse goback calls instead
@@ -451,7 +442,7 @@ proc step_back {} {
 		# eventually PC != current_addr. (Interrupts inside the block
 		# also satisfy PC != current_addr, which terminates the loop
 		# early -- harmless, Phase 4 scans forward past them anyway.)
-		set goback [expr {$time_per_iter * 8}]
+		set goback [expr {$max_instr_len * 8}]
 		while {[reg PC] == $current_addr} {
 			# Guard against running off the available replay history:
 			# if 'reverse goback' cannot move (emulator time frozen),
