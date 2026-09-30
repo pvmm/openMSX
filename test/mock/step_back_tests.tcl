@@ -17,6 +17,8 @@
 #   multi-pass loop  : block inside a DJNZ loop; lands on the LATEST pass's
 #                      first iteration, not an earlier pass
 #   OTIR (B counter) : B-only block counter handling for an OUT block repeat
+#   shared subroutine: one LDIR subroutine called with a different BC from
+#                      several sites (CALL/RET/LD overhead between runs)
 #   exhausted Replay : reverse history starts mid-block, so the exponential
 #                      goback cannot move (time frozen) and step_back errors
 #                      instead of looping forever
@@ -246,6 +248,43 @@ tcltest::test $ctx "backoff landing in IRQ gap rewinds to first iteration" {
 	tcltest::eq $ctx [dict get $res t] 1 "landed on first block entry, not the resume run"
 	tcltest::eq_hex $ctx [dict get $res pc] $blk "landed on block addr"
 	tcltest::eq_hex $ctx [dict get $res bc] 48 "counter at initial maximum, not depleted"
+}
+
+###############################################################################
+# Scenario 8: shared LDIR subroutine called with varying BC per call site
+###############################################################################
+tcltest::test $ctx "shared subroutine with varying BC rewinds current execution" {
+	# Subroutine 'LDIR; RET' at 0x4003/0x4005, called with BC=5, then 3,
+	# then 4 from three sites (LD/ CALL/RET overhead between runs).
+	# NOTE (mock time-scale blind spot): mock strides sit far below the
+	# 1.0 boundary spacing, so Phase 3 single-steps back and exits at the
+	# nearest call overhead; the scan window then covers only the current
+	# execution, and the max rule never sees the earlier higher-count run.
+	# Varying counts across executions that share one scan window need
+	# real-hardware strides -- covered by the integration test.
+	set blk 0x4003
+	set tl [list [list 0 0x4010 5] [list 1 0x4013 5]]
+	set t 2
+	foreach k {5 4 3 2 1} { lappend tl [list $t $blk $k]; incr t }
+	lappend tl [list $t 0x4005 0]; incr t
+	lappend tl [list $t 0x4020 3]; incr t
+	lappend tl [list $t 0x4023 3]; incr t
+	foreach k {3 2 1} { lappend tl [list $t $blk $k]; incr t }
+	lappend tl [list $t 0x4005 0]; incr t
+	lappend tl [list $t 0x4030 4]; incr t
+	lappend tl [list $t 0x4033 4]; incr t
+	set t3 $t
+	foreach k {4 3 2 1} { lappend tl [list $t $blk $k]; incr t }
+	lappend tl [list $t 0x4005 0]; incr t
+	lappend tl [list $t 0x4036 0]
+	set instrs {0x4010 "ld bc,n" 0x4013 call 0x4020 "ld bc,n" 0x4023 call \
+	            0x4030 "ld bc,n" 0x4033 call 0x4003 ldir 0x4005 ret 0x4036 halt}
+	# step_back from the subroutine RET right after the third execution
+	# (BC=4): must land on its first iteration, not on an earlier call.
+	set res [run_case $tl $instrs [expr {[llength $tl] - 2}]]
+	tcltest::eq $ctx [dict get $res t] $t3 "landed on current execution start"
+	tcltest::eq_hex $ctx [dict get $res pc] $blk "landed on block addr"
+	tcltest::eq_hex $ctx [dict get $res bc] 4 "counter of the current execution"
 }
 
 ###############################################################################

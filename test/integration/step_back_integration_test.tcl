@@ -79,6 +79,20 @@ proc it::run_to_bp {} {
 
 proc it::reg {name} { return [omsx::reg $name] }
 
+# it::cont_to_bp  -- like run_to_bp but WITHOUT reset: continue from the
+# current breaked position (e.g. a previous breakpoint hit) and wait for
+# the next hit of a persistent breakpoint. Used to observe the 2nd, 3rd,
+# ... firing of one breakpoint without re-running the ROM.
+proc it::cont_to_bp {} {
+	set dl [expr {[clock milliseconds] + 30000}]
+	omsx::continue_cpu
+	while {1} {
+		if {[omsx::is_breaked]} { break }
+		if {[clock milliseconds] > $dl} { error "CPU never reached breakpoint (breaked=[omsx::is_breaked])" }
+		omsx::sleepms 50
+	}
+}
+
 set ctx [tcltest::new step_back_integration]
 
 # --- Test cases -----------------------------------------------------------
@@ -148,6 +162,29 @@ tcltest::test $ctx "ldir inside DJNZ loop mid-block rewinds to first iteration" 
 	tcltest::eq_hex $ctx [it::reg bc] 0x2000 "BC restored to first iteration"
 	tcltest::eq_hex $ctx [it::reg hl] 0x4000 "HL restored to source"
 	tcltest::eq_hex $ctx [it::reg de] 0xc000 "DE restored to dest"
+	omsx::rm_bp $bp
+	omsx::exit
+}
+
+# 5) Shared LDIR subroutine called with a different BC per call site
+#    (BC=5, then 3, then 4; DI so no IRQ): breaking on the subroutine RET
+#    after the THIRD execution and stepping back must land on the LDIR with
+#    BC=4 -- the first iteration of the CURRENT execution, not the earlier
+#    higher-count (BC=5) one.
+tcltest::test $ctx "shared ldir subroutine varying BC rewinds current execution" {
+	it::boot_cart [it::rom msx_60hz_16kb_ldir_sub.rom]
+	set bp [omsx::set_bp "0x4029"]              ;# COPY's RET (BC=0 at each return)
+	it::run_to_bp                               ;# 1st hit: end of BC=5 execution
+	tcltest::eq_hex $ctx [it::reg pc] 0x4029 "first return reached"
+	it::cont_to_bp                              ;# 2nd hit: end of BC=3 execution
+	tcltest::eq_hex $ctx [it::reg pc] 0x4029 "second return reached"
+	it::cont_to_bp                              ;# 3rd hit: end of BC=4 execution
+	tcltest::eq_hex $ctx [it::reg pc] 0x4029 "third return reached"
+	omsx::step_back
+	tcltest::eq_hex $ctx [it::reg pc] 0x4027 "lands on LDIR"
+	tcltest::eq_hex $ctx [it::reg bc] 0x4 "BC restored to current execution (4)"
+	tcltest::eq_hex $ctx [it::reg hl] 0x4008 "HL restored to third-execution source"
+	tcltest::eq_hex $ctx [it::reg de] 0xc008 "DE restored to third-execution dest"
 	omsx::rm_bp $bp
 	omsx::exit
 }

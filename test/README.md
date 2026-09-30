@@ -86,6 +86,9 @@ the tests run without an assembler.
     `C=$A0`; exercises the B-only counter branch.
   * `msx_60hz_16kb_ldir_loop.rom` — `LDIR` at `0x4019` inside a `DJNZ` outer
     loop (4 passes, `DI` so no IRQ); same block PC on every pass.
+  * `msx_60hz_16kb_ldir_sub.rom` — shared `LDIR` subroutine at `0x4027`
+    called with a different `BC` from three sites (5, then 3, then 4;
+    `DI` so no IRQ); same block PC with varying initial counters.
 
 ## What the tests assert
 
