@@ -297,6 +297,27 @@ proc is_block_repeat {instr} {
 
 
 #
+# is_return
+#
+# Predicate: is this disassembled mnemonic any kind of subroutine or
+# interrupt return (RET, RET cc, RETI, RETN)? Used to tell a block run that
+# RESUMES after an IRQ -- its first boundary is preceded by the handler's
+# exit return -- from a FRESH block entry, which is preceded by
+# loader/call/branch code (LD BC,n, CALL, JR, DJNZ, ...).
+# Matching is intentionally lowercase-only, like is_block_repeat. Note this
+# deliberately includes plain RET, not just RETI/RETN: handlers need not end
+# in RETI (electrically nothing on MSX requires the EOI) -- C-BIOS, for
+# example, exits its interrupt handler with EI + RET (probe: JP #18E6 from
+# the IM1 vector runs down to EI/RET at #195C/#195D). A plain-RET
+# predecessor is therefore AMBIGUOUS (handler exit, or a caller block right
+# after a subroutine returns) and counts as "not fresh evidence", leaving
+# such run starts to the counter half of the acceptance rule.
+proc is_return {instr} {
+	expr {[string match "ret*" $instr]}
+}
+
+
+#
 # step_back
 #
 # Reverse-step one instruction: rewind the replay timeline to the instruction
@@ -532,24 +553,45 @@ proc step_back {} {
 		#    counter. The timeline therefore holds several disjoint "runs"
 		#    of consecutive current_addr boundaries for one logical block.
 		#
-		# Disambiguation key: the block counter strictly decreases as the
-		# block runs, so a FRESH block entry always carries the initial
-		# (maximum) counter, while resume/continuation boundaries carry
-		# lower values. The counter is the BC pair for LDIR/LDDR/CPIR/CPDR
-		# and the B register alone (C = fixed I/O port) for
-		# INIR/INDR/OTIR/OTDR; either way B is decremented per iteration,
-		# so comparing the whole [reg BC] works uniformly (C is constant
-		# for I/O blocks, hence BC ordering == B ordering). Therefore: a
-		# run start whose BC >= every BC seen before in this scan is the
-		# start of a new block execution, and the LAST such qualifying run
-		# before 'start' is the first iteration of the current execution
-		# (earlier passes are superseded, IRQ-resumed runs are rejected
-		# for their lower counter).
+		# Disambiguation key: a run start is accepted when it is a FRESH
+		# block entry by either of two independent signs (union rule).
+		# (1) Predecessor sign: a run that resumes after an IRQ follows
+		# the handler's exit return, while a fresh entry follows
+		# loader/call/branch code. (2) Counter sign: the block counter
+		# strictly decreases as the block runs, so a fresh entry carries
+		# a counter >= every counter seen before in this scan. The
+		# counter is the BC pair for LDIR/LDDR/CPIR/CPDR and the B
+		# register alone (C = fixed I/O port) for INIR/INDR/OTIR/OTDR;
+		# either way B is decremented per iteration, so comparing the
+		# whole [reg BC] works uniformly (C is constant for I/O blocks,
+		# hence BC ordering == B ordering).
+		# Neither sign alone suffices: the counter sign cannot tell a
+		# fresh execution with a LOWER initial count (shared subroutine
+		# called with varying lengths) from a depleted IRQ resume, while
+		# the predecessor sign cannot tell a fresh entry that happens to
+		# follow an unrelated interrupt -- or a caller block placed right
+		# after a subroutine returns (predecessor RET in both cases).
+		# Together they cover all cases: IRQ resumes fail both (return
+		# predecessor, depleted counter); reloaded loop passes and later
+		# call sites pass via predecessor (and via counter on ties), so
+		# the latest accepted run before 'start' is the first iteration
+		# of the current execution.
+		# max_bc is therefore load-bearing and must stay: it is the
+		# counter half of the union, deciding every run start whose
+		# predecessor is a return of any kind.
 		reverse goback -novideo $max_instr_len
 		set curr [dict get [reverse status] "current"]
 		set cand -1
 		set max_bc -1
 		set inrun 0
+		# Predecessor PC for the next boundary: at a run start, 'curr'
+		# still addresses the previous boundary, so disassembling prev_pc
+		# reveals what kind of code the run follows. Refreshed at the
+		# bottom of every iteration (one extra 'reg' read per hop; the
+		# disassembly itself only happens on run starts). No extra time
+		# travel is needed for this -- deliberately so, to keep the scan
+		# a pure forward walk.
+		set prev_pc [reg PC]
 		while {1} {
 			reverse goto -novideo [expr {$curr + $cycle_period}]
 			set next [dict get [reverse status] "current"]
@@ -561,8 +603,9 @@ proc step_back {} {
 			set match [expr {[reg PC] == $current_addr}]
 			if {$match && !$inrun} {
 				# New run of block iterations starts here; keep it as
-				# a candidate only if the block counter is fresh, i.e.
-				# if this is the start of a (new) block execution.
+				# a candidate if fresh by predecessor (previous boundary
+				# is not any kind of return) or by counter (new maximum).
+				# The latest accepted run is the current execution.
 				#
 				# Note: record 'next' (the current boundary), not 'curr'
 				# (the boundary we advanced from). The block counter is
@@ -573,10 +616,11 @@ proc step_back {} {
 				# point. Recording 'curr' would land one instruction too
 				# early (before the counter is loaded). This was the
 				# second half of the 9255c286a fix.
+				set pred_fresh [expr {![is_return [lindex [debug disasm $prev_pc] 0]]}]
 				set bc [reg BC]
-				if {$bc >= $max_bc} {
+				if {$pred_fresh || ($bc >= $max_bc)} {
 					set cand $next
-					set max_bc $bc
+					if {$bc > $max_bc} { set max_bc $bc }
 				}
 			}
 			set inrun $match
@@ -598,6 +642,7 @@ proc step_back {} {
 				break
 			}
 			set curr $next
+			set prev_pc [reg PC]
 		}
 		# Ultimate fallback (should be unreachable when a block run was
 		# found, but keeps the proc total): stay where Phase 1 left us.

@@ -79,6 +79,17 @@ tcltest::test $ctx "is_block_repeat rejects non-block opcodes" {
 		tcltest::not $ctx [disasm::is_block_repeat $op] "non-block $op"
 	}
 }
+tcltest::test $ctx "is_return catches all return forms" {
+	# RETI/RETN (interrupt returns) and plain RET / RET cc (subroutine
+	# returns, and C-BIOS-style handler exits) must all match: any of them
+	# as a run-start predecessor withholds "fresh" evidence.
+	foreach op {ret reti retn {ret z} {ret nz}} {
+		tcltest::is $ctx [disasm::is_return $op] "return $op"
+	}
+	foreach op {nop halt call ld jr ldir rst jp} {
+		tcltest::not $ctx [disasm::is_return $op] "non-return $op"
+	}
+}
 
 ###############################################################################
 # Scenario 1: single LDIR -- step_back from after the block
@@ -188,10 +199,16 @@ tcltest::test $ctx "IRQ-interrupted block lands on initial max-counter entry" {
 	set t 1
 	foreach k {5 4 3} { lappend tl [list $t $blk $k]; incr t }   ;# before IRQ
 	lappend tl [list $t 0x0038 2]; incr t                        ;# IRQ handler entry
-	lappend tl [list $t 0x0038 2]; incr t                        ;# handler work
+	lappend tl [list $t 0x003A 2]; incr t                        ;# handler exit (plain RET, like C-BIOS)
 	foreach k {2 1} { lappend tl [list $t $blk $k]; incr t }     ;# resumed block
 	lappend tl [list $t 0x4005 0]                                ;# after block, call here
-	set instrs {0x4000 "ld bc,n" 0x4003 ldir 0x4005 ret 0x0038 handler}
+	# NOTE: the handler must END with a return at its own address (here a
+	# plain RET, mirroring C-BIOS, which exits with EI/RET rather than
+	# RETI): the resume run's predecessor has to disassemble as a return
+	# for the predecessor half of the acceptance rule (a shared 0x0038 for
+	# work+exit would read as a fresh entry instead). The gap-exit test
+	# below models a RETI-ending handler instead, so both arms are covered.
+	set instrs {0x4000 "ld bc,n" 0x4003 ldir 0x4005 ret 0x0038 handler 0x003A ret}
 	set last [expr {[llength $tl] - 1}]
 	set res [run_case $tl $instrs $last]
 	# Must land on the INITIAL entry (max counter), not the resumed entry (2).
@@ -238,12 +255,12 @@ tcltest::test $ctx "backoff landing in IRQ gap rewinds to first iteration" {
 	for {set t 1} {$t <= 40} {incr t} {
 		lappend tl [list $t $blk $bc]; incr bc -1
 	}
-	lappend tl [list 41 0x0038 8] [list 42 0x0038 8]
+	lappend tl [list 41 0x0038 8] [list 42 0x0039 8]
 	for {set t 43} {$t <= 50} {incr t} {
 		lappend tl [list $t $blk $bc]; incr bc -1
 	}
 	lappend tl [list 51 0x4005 0]
-	set instrs {0x4000 "ld bc,n" 0x4003 ldir 0x4005 ret 0x0038 handler}
+	set instrs {0x4000 "ld bc,n" 0x4003 ldir 0x4005 ret 0x0038 handler 0x0039 reti}
 	set res [run_case $tl $instrs 51]
 	tcltest::eq $ctx [dict get $res t] 1 "landed on first block entry, not the resume run"
 	tcltest::eq_hex $ctx [dict get $res pc] $blk "landed on block addr"
