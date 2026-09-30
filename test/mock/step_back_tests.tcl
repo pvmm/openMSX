@@ -20,6 +20,10 @@
 #   exhausted Replay : reverse history starts mid-block, so the exponential
 #                      goback cannot move (time frozen) and step_back errors
 #                      instead of looping forever
+#   handler-gap exit : a backoff landing falls inside the IRQ handler gap
+#                      mid-span; Phase 3 must not mistake it for pre-block
+#                      code, or Phase 4 would land on the depleted resume
+#                      run instead of the true first iteration
 #   non-block        : normal step_back (one boundary back) when neither the
 #                      current instruction nor its predecessor is a block
 
@@ -216,6 +220,32 @@ tcltest::test $ctx "history exhausted mid-block raises internal error" {
 	tcltest::is $ctx {$rc != 0} "step_back raises instead of hanging"
 	tcltest::is $ctx {[string match "*reverse system record unavailable*" $msg]} \
 		"error names the unavailable reverse record"
+}
+
+###############################################################################
+# Scenario 6c: backoff exit inside the IRQ gap still finds the true start
+###############################################################################
+tcltest::test $ctx "backoff landing in IRQ gap rewinds to first iteration" {
+	# 48-iteration LDIR with the handler placed so that a backoff landing
+	# falls inside the gap (t=41,42) mid-span. Exiting Phase 3 there must
+	# not strand the forward scan inside the span: the resume run (BC=8)
+	# must be rejected in favour of the true first iteration (BC=48).
+	set blk 0x4003
+	set tl [list [list 0 0x4000 48]]
+	set bc 48
+	for {set t 1} {$t <= 40} {incr t} {
+		lappend tl [list $t $blk $bc]; incr bc -1
+	}
+	lappend tl [list 41 0x0038 8] [list 42 0x0038 8]
+	for {set t 43} {$t <= 50} {incr t} {
+		lappend tl [list $t $blk $bc]; incr bc -1
+	}
+	lappend tl [list 51 0x4005 0]
+	set instrs {0x4000 "ld bc,n" 0x4003 ldir 0x4005 ret 0x0038 handler}
+	set res [run_case $tl $instrs 51]
+	tcltest::eq $ctx [dict get $res t] 1 "landed on first block entry, not the resume run"
+	tcltest::eq_hex $ctx [dict get $res pc] $blk "landed on block addr"
+	tcltest::eq_hex $ctx [dict get $res bc] 48 "counter at initial maximum, not depleted"
 }
 
 ###############################################################################

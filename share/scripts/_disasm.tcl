@@ -423,47 +423,104 @@ proc step_back {} {
 	# the whole block at once, symmetric with step_over which skips it.
 	if {[is_block_repeat [lindex [debug disasm [reg PC]] 0]]} {
 		# Phase 3 -- jump to somewhere before the whole block run.
-		# Measure the time per iteration of this block instruction:
-		# 'start' is the time we came from, 'time_after_first' is where
-		# Phase 1 left us (exactly one iteration earlier, or -- in the
-		# after-block case -- the block's end boundary). Their difference
-		# is therefore one iteration's duration.
 		set current_addr [reg PC]
-		set time_after_first [dict get [reverse status] "current"]
 
 		# Go back past all iterations of the block instruction using
 		# exponential backoff (O(log N) reverse goback calls instead
-		# of O(N)). We double the goback amount each time until PC
-		# no longer points to the block instruction address.
-		# Starting at 8 iterations and doubling means an N-iteration
-		# block needs only ~log2(N/8)+1 slow backwards jumps however
-		# large N is. The loop provably terminates: each jump goes
-		# further back than the last, and the block run is finite, so
-		# eventually PC != current_addr. (Interrupts inside the block
-		# also satisfy PC != current_addr, which terminates the loop
-		# early -- harmless, Phase 4 scans forward past them anyway.)
+		# of O(N)). We double the goback amount each time. Starting at
+		# 8 max-instruction lengths is deliberately uncalibrated: any
+		# positive initial stride works (only the number of doublings
+		# changes, by ~log2 of the stride ratio), so there is no need
+		# to measure this block's real per-iteration time. The search
+		# provably keeps moving back, and the block run is finite.
+		#
+		# Leaving the block address does NOT prove we are before the
+		# block, though: a 'reverse goback' landing can fall inside an
+		# IRQ handler gap in the middle of the block span (landing time
+		# vs. handler timing is arithmetic luck -- e.g. a handler
+		# placed so that the very first stride lands in it). Exiting on
+		# the first off-block landing would strand Phase 4's forward
+		# scan inside the span, and its counter rule would then accept
+		# the depleted resume run (any counter beats the initial max_bc
+		# of -1) instead of the true first iteration -- a silent
+		# mis-land on the resume entry with a depleted counter.
+		# So require three CONSECUTIVE off-block landings to exit, with
+		# geometrically growing spacing: if stride s landed us at X1, the
+		# two confirmations land at X1-2s and X1-6s (strides keep doubling).
+		# A single gap defeats this only by containing all three, i.e. by
+		# spanning ~6x the arrival stride; any narrower gap is either
+		# escaped backward onto pre-gap block code (count reset, search
+		# resumes -- the gap is proven to be a gap) or leapt over entirely
+		# (covered by the rewind rule below). An on-block landing resets
+		# the count; this also harmlessly absorbs earlier outer-loop
+		# passes (DJNZ): jumping back onto an earlier pass just continues
+		# the search further back, and Phase 4 still prefers the current
+		# pass via the counter maximum rule. (Protection grows as 2^K-2
+		# arrival strides for K landings, at K-1 extra jumps: 2x for two,
+		# 6x for three, 14x for four. Three is the sweet spot.)
+		# Residual: a single gap >=6x the arrival stride containing all
+		# three landings; Phase 4 would then land on the resume entry
+		# (best effort, no error is raised).
 		set goback [expr {$max_instr_len * 8}]
-		while {[reg PC] == $current_addr} {
-			# Guard against running off the available replay history:
-			# if 'reverse goback' cannot move (emulator time frozen),
-			# there is no earlier state to examine, so fail loudly
-			# instead of looping forever (fix from 710889eae for
-			# "reverse start called mid-block", where no pre-block
-			# history exists yet).
-			set check_time_lock [machine_info time]
-			reverse goback -novideo $goback
-			if {$check_time_lock == [machine_info time]} {
-				error "Internal error: reverse system record unavailable for the time frame"
+		set offblock 0
+		while {1} {
+			if {[reg PC] == $current_addr} {
+				set offblock 0
+				# Guard against running off the available replay history:
+				# if 'reverse goback' cannot move (emulator time frozen),
+				# there is no earlier state to examine, so fail loudly
+				# instead of looping forever (fix from 710889eae for
+				# "reverse start called mid-block", where no pre-block
+				# history exists yet).
+				set check_time_lock [machine_info time]
+				reverse goback -novideo $goback
+				if {$check_time_lock == [machine_info time]} {
+					error "Internal error: reverse system record unavailable for the time frame"
+				}
+			} else {
+				# Off-block landing: pre-block code (what we want) or a
+				# mid-span IRQ gap (see above). Count consecutive ones;
+				# an on-block landing above resets the count.
+				#
+				# The rewind point on break is the CURRENT position (the
+				# earliest of the run), deliberately not the first: safety
+				# is monotone going earlier -- a wider window can only add
+				# earlier runs for Phase 4's maximum rule to filter, while
+				# the first landing may itself sit in a gap whose pre-gap
+				# remnant was leapt over in one stride. So no timestamp is
+				# recorded at all: on break we are already standing where
+				# Phase 4 should start scanning.
+				incr offblock
+				if {$offblock >= 3} {
+					break
+				}
+				set check_time_lock [machine_info time]
+				reverse goback -novideo $goback
+				if {$check_time_lock == [machine_info time]} {
+					# No earlier history to consult (recording starts
+					# here): accept the oldest recorded point as best
+					# effort -- we are already standing on it. Unlike the
+					# on-block freeze above this is not an error: we are
+					# already off the block, so Phase 4 degrades to
+					# "earliest recorded".
+					break
+				}
 			}
 			set goback [expr {$goback * 2}]
 		}
+		# Break position is the earliest consecutive off-block landing (or
+		# the oldest recorded point after a freeze): Phase 4 scans forward
+		# from exactly here, so no repositioning jump is needed.
 
 		# Phase 4 -- scan forward to the first iteration of THIS block run.
-		# We are now guaranteed somewhere strictly before the block run
-		# (Phase 3 exited only when PC left current_addr). Nudge one more
-		# instruction back so the forward scan starts before -- not inside
-		# -- the earliest candidate boundary, then walk forward boundary by
-		# boundary until the original 'start' time is reached.
+		# We are now at Phase 3's break position -- the earliest of three
+		# consecutive off-block landings (or the oldest recorded point
+		# after a freeze) -- i.e. before the block run and not inside a
+		# mid-span IRQ gap (see Phase 3, modulo its stated residual).
+		# Nudge one more instruction back so the forward
+		# scan starts before -- not inside -- the earliest candidate
+		# boundary, then walk forward boundary by boundary until the
+		# original 'start' time is reached.
 		#
 		# Why PC-matching alone is insufficient: the same block address can
 		# appear many times in the scanned window, but only one occurrence
