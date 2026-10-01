@@ -443,6 +443,18 @@ proc step_back {} {
 	# back just one iteration would cause surprise; users expect to undo
 	# the whole block at once, symmetric with step_over which skips it.
 	if {[is_block_repeat [lindex [debug disasm [reg PC]] 0]]} {
+		# Fast path: the C++ core logs one BlockEntry reverse marker per
+		# block execution (never per iteration, never on IRQ resumes), so
+		# the latest marker for this address is the first iteration of the
+		# current execution -- no search needed. Falls back to the
+		# Phase 3/4 heuristics below when no marker exists (old replay,
+		# reverse started mid-block, markers unsupported).
+		if {![catch {reverse blockstart [reg PC] $start} marker_time]} {
+			# Like the final placements below, omit '-novideo' so the
+			# display refreshes to the landing state.
+			reverse goto $marker_time
+			return
+		}
 		# Phase 3 -- jump to somewhere before the whole block run.
 		set current_addr [reg PC]
 

@@ -161,6 +161,10 @@
 #include "CPUCore.hh"
 
 #include "Dasm.hh"
+#include "ReverseManager.hh"
+#include "StateChange.hh"
+#include "StateChangeDistributor.hh"
+#include "serialize_stl.hh"
 #include "MSXCPUInterface.hh"
 #include "R800.hh"
 #include "Z80.hh"
@@ -380,6 +384,8 @@ template<typename T> void CPUCore<T>::doReset(EmuTime time)
 	// able to reproduce this assert by recording and replaying using a
 	// single openMSX version.
 	T::setTime(time);
+
+	blockStack.clear(); // no suspended block-repeat execution survives reset
 
 	assert(NMIStatus == 0); // other devices must reset their NMI source
 	assert(IRQStatus == 0); // other devices must reset their IRQ source
@@ -4011,6 +4017,48 @@ template<typename T> II CPUCore<T>::out_byte_a() {
 
 
 // block CP
+// Bookkeeping for block-repeat executions, see CPUCore.hh.
+// Called once per repeat-opcode dispatch (ldir/lddr/cpir/cpdr/inir/indr/
+// otir/otdr only, never for the single-step variants). A dispatch whose PC
+// is still on top of the stack is either another iteration of the running
+// block or an IRQ/NMI resume of a suspended one: both log nothing. Any
+// other PC is a fresh entry (first iteration, loop re-entry, nested
+// handler block, later call site): push it and, when reverse data is being
+// collected at the live frontier, log one BlockEntry marker. Emission is
+// skipped while replaying (the marker is already in the log; re-emitting
+// would truncate the future via stopReplay) and while not collecting.
+template<typename T> void CPUCore<T>::noteBlockRepeatEntry()
+{
+	// At repeat-opcode dispatch PC points at the second instruction byte
+	// (CASE(ED) already advanced past the prefix); instruction boundaries,
+	// 'reg PC', breakpoints and the disassembler all use the first byte.
+	uint16_t pc = getPC() - 1;
+	if (!blockStack.empty() && blockStack.back() == pc) {
+		return;
+	}
+	if (blockStack.size() >= 8) {
+		blockStack.erase(begin(blockStack)); // drop oldest, keep recent
+	}
+	blockStack.push_back(pc);
+	auto& reverse = motherboard.getReverseManager();
+	if (reverse.isCollecting() && !reverse.isReplaying()) {
+		motherboard.getStateChangeDistributor().distributeNew<BlockEntry>(
+			T::getTime(), pc, getBC());
+	}
+}
+
+// Called when a repeat opcode finishes its block (BC exhausted, or CPIR/
+// CPDR early match). Pops the matching context so a later re-execution at
+// the same PC (loop pass, later call) is seen as a fresh entry again.
+// The empty-stack fast path keeps single-step LDI/CPI/... untouched.
+template<typename T> void CPUCore<T>::noteBlockRepeatEnd()
+{
+	// Same first-byte convention as noteBlockRepeatEntry().
+	if (!blockStack.empty() && blockStack.back() == uint16_t(getPC() - 1)) {
+		blockStack.pop_back();
+	}
+}
+
 template<typename T> inline II CPUCore<T>::BLOCK_CP(int increase, bool repeat) {
 	T::setMemPtr(T::getMemPtr() + increase);
 	uint8_t val = RDMEM(getHL(), T::CC_CPI_1);
@@ -4035,13 +4083,14 @@ template<typename T> inline II CPUCore<T>::BLOCK_CP(int increase, bool repeat) {
 		T::setMemPtr(getPC() + 1);
 		return {uint16_t(-1)/*1*/, T::CC_CPIR};
 	} else {
+		if (repeat) noteBlockRepeatEnd();
 		return {1, T::CC_CPI};
 	}
 }
 template<typename T> II CPUCore<T>::cpd()  { return BLOCK_CP(-1, false); }
 template<typename T> II CPUCore<T>::cpi()  { return BLOCK_CP( 1, false); }
-template<typename T> II CPUCore<T>::cpdr() { return BLOCK_CP(-1, true ); }
-template<typename T> II CPUCore<T>::cpir() { return BLOCK_CP( 1, true ); }
+template<typename T> II CPUCore<T>::cpdr() { noteBlockRepeatEntry(); return BLOCK_CP(-1, true ); }
+template<typename T> II CPUCore<T>::cpir() { noteBlockRepeatEntry(); return BLOCK_CP( 1, true ); }
 
 
 // block LD
@@ -4065,13 +4114,14 @@ template<typename T> inline II CPUCore<T>::BLOCK_LD(int increase, bool repeat) {
 		T::setMemPtr(getPC() + 1);
 		return {uint16_t(-1)/*1*/, T::CC_LDIR};
 	} else {
+		if (repeat) noteBlockRepeatEnd();
 		return {1, T::CC_LDI};
 	}
 }
 template<typename T> II CPUCore<T>::ldd()  { return BLOCK_LD(-1, false); }
 template<typename T> II CPUCore<T>::ldi()  { return BLOCK_LD( 1, false); }
-template<typename T> II CPUCore<T>::lddr() { return BLOCK_LD(-1, true ); }
-template<typename T> II CPUCore<T>::ldir() { return BLOCK_LD( 1, true ); }
+template<typename T> II CPUCore<T>::lddr() { noteBlockRepeatEntry(); return BLOCK_LD(-1, true ); }
+template<typename T> II CPUCore<T>::ldir() { noteBlockRepeatEntry(); return BLOCK_LD( 1, true ); }
 
 
 // block IN
@@ -4096,13 +4146,14 @@ template<typename T> inline II CPUCore<T>::BLOCK_IN(int increase, bool repeat) {
 		//setPC(getPC() - 2);
 		return {uint16_t(-1)/*1*/, T::CC_INIR};
 	} else {
+		if (repeat) noteBlockRepeatEnd();
 		return {1, T::CC_INI};
 	}
 }
 template<typename T> II CPUCore<T>::ind()  { return BLOCK_IN(-1, false); }
 template<typename T> II CPUCore<T>::ini()  { return BLOCK_IN( 1, false); }
-template<typename T> II CPUCore<T>::indr() { return BLOCK_IN(-1, true ); }
-template<typename T> II CPUCore<T>::inir() { return BLOCK_IN( 1, true ); }
+template<typename T> II CPUCore<T>::indr() { noteBlockRepeatEntry(); return BLOCK_IN(-1, true ); }
+template<typename T> II CPUCore<T>::inir() { noteBlockRepeatEntry(); return BLOCK_IN( 1, true ); }
 
 
 // block OUT
@@ -4127,13 +4178,14 @@ template<typename T> inline II CPUCore<T>::BLOCK_OUT(int increase, bool repeat) 
 		//setPC(getPC() - 2);
 		return {uint16_t(-1)/*1*/, T::CC_OTIR};
 	} else {
+		if (repeat) noteBlockRepeatEnd();
 		return {1, T::CC_OUTI};
 	}
 }
 template<typename T> II CPUCore<T>::outd() { return BLOCK_OUT(-1, false); }
 template<typename T> II CPUCore<T>::outi() { return BLOCK_OUT( 1, false); }
-template<typename T> II CPUCore<T>::otdr() { return BLOCK_OUT(-1, true ); }
-template<typename T> II CPUCore<T>::otir() { return BLOCK_OUT( 1, true ); }
+template<typename T> II CPUCore<T>::otdr() { noteBlockRepeatEntry(); return BLOCK_OUT(-1, true ); }
+template<typename T> II CPUCore<T>::otir() { noteBlockRepeatEntry(); return BLOCK_OUT( 1, true ); }
 
 
 // various
@@ -4366,6 +4418,14 @@ void CPUCore<T>::serialize(Archive& ar, unsigned version)
 		// CPU is deserialized after devices, so nmiEdge is restored to the
 		// saved version even if IRQHelpers set it on deserialization.
 		ar.serialize("nmiEdge", nmiEdge);
+	}
+
+	if (ar.versionBelow(version, 6)) {
+		// No block-repeat context was recorded: any in-flight block loses
+		// its entry marker (its resume will look like a fresh entry).
+		blockStack.clear();
+	} else {
+		ar.serialize("blockStack", blockStack);
 	}
 
 	// Don't serialize:

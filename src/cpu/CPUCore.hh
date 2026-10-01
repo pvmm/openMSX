@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <span>
 #include <string>
+#include <vector>
 
 namespace openmsx {
 
@@ -162,6 +163,21 @@ private:
 	 * Set to false when the CPU jumps to the NMI handler address.
 	 */
 	bool nmiEdge = false;
+
+	/**
+	 * PCs of currently suspended block-repeat executions, innermost last.
+	 * Pushed when a repeat opcode is dispatched with a different PC on top
+	 * (fresh entry, including loop re-entries and nested handler blocks),
+	 * popped when its final iteration completes. An IRQ/NMI resume
+	 * re-dispatches the PC that is still on top, so it correctly logs no
+	 * new entry. Cleared on reset; serialized with the CPU state.
+	 * PCs are instruction-start addresses (first byte, as in 'reg PC' and
+	 * the disassembler), not the second ED-prefix byte seen at dispatch.
+	 * Same-PC reentrant execution (a handler calling the exact interrupted
+	 * block routine) is not distinguished; that code is not reentrant
+	 * anyway on MSX (handlers run with interrupts disabled).
+	 */
+	std::vector<uint16_t> blockStack;
 
 	std::atomic<bool> exitLoop = false;
 
@@ -449,6 +465,14 @@ private:
 	inline II otdr();
 	inline II otir();
 
+	// Bookkeeping for block-repeat executions (LDIR/LDDR/CPIR/CPDR/
+	// INIR/INDR/OTIR/OTDR), used to log BlockEntry reverse markers.
+	// Called once per repeat-opcode dispatch (not per single-step
+	// variant); the per-dispatch cost is a couple of predictable
+	// branches. See CPUCore.cc for the stack-discipline rationale.
+	inline void noteBlockRepeatEntry();
+	inline void noteBlockRepeatEnd();
+
 	template<int EE = 0> inline II nop();
 	inline II ccf();
 	inline II cpl();
@@ -477,8 +501,8 @@ private:
 
 class Z80TYPE;
 class R800TYPE;
-SERIALIZE_CLASS_VERSION(CPUCore<Z80TYPE>,  5);
-SERIALIZE_CLASS_VERSION(CPUCore<R800TYPE>, 5); // keep these two the same
+SERIALIZE_CLASS_VERSION(CPUCore<Z80TYPE>,  6);
+SERIALIZE_CLASS_VERSION(CPUCore<R800TYPE>, 6); // keep these two the same
 
 } // namespace openmsx
 
