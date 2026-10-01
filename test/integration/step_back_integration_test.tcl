@@ -189,6 +189,25 @@ tcltest::test $ctx "shared ldir subroutine varying BC rewinds current execution"
 	omsx::exit
 }
 
+# 6) Nested blocks: outer LDIR interrupted by video IRQs whose H.TIMI hook
+#    runs its own INIR (B=4). Breaking after the outer block and stepping
+#    back must land on the outer LDIR with BC=$2000 restored -- the inner
+#    INIR markers (different PC) must not disturb it, and the outer resume
+#    must not log a spurious outer entry (which would land mid-block).
+tcltest::test $ctx "nested inir inside outer ldir rewinds outer to first iteration" {
+	it::boot_cart [it::rom msx_60hz_16kb_ldir_nested.rom]
+	set bp [omsx::set_bp "0x4028"]              ;# JR FOREVER (after outer LDIR)
+	it::run_to_bp
+	tcltest::eq_hex $ctx [it::reg pc] 0x4028 "break fires after outer block"
+	omsx::step_back
+	tcltest::eq_hex $ctx [it::reg pc] 0x4026 "lands on outer LDIR"
+	tcltest::eq_hex $ctx [it::reg bc] 0x2000 "BC restored to 8192"
+	tcltest::eq_hex $ctx [it::reg hl] 0x4000 "HL restored to source"
+	tcltest::eq_hex $ctx [it::reg de] 0xc000 "DE restored to dest"
+	omsx::rm_bp $bp
+	omsx::exit
+}
+
 set fails [tcltest::summary $ctx]
 if {$fails > 0} { exit 1 }
 exit 0

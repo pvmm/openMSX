@@ -28,6 +28,9 @@
 #                      run instead of the true first iteration
 #   non-block        : normal step_back (one boundary back) when neither the
 #                      current instruction nor its predecessor is a block
+#   marker fast path : with marker emulation on, step_back consults
+#                      `reverse blockstart` (all other tests leave markers
+#                      off to keep covering the heuristic fallback)
 
 source [file join [file dirname [info script]] .. common tcltest.tcl]
 source [file join [file dirname [info script]] step_back_mock.tcl]
@@ -302,6 +305,32 @@ tcltest::test $ctx "shared subroutine with varying BC rewinds current execution"
 	tcltest::eq $ctx [dict get $res t] $t3 "landed on current execution start"
 	tcltest::eq_hex $ctx [dict get $res pc] $blk "landed on block addr"
 	tcltest::eq_hex $ctx [dict get $res bc] 4 "counter of the current execution"
+}
+
+###############################################################################
+# Scenario 9: marker fast path is taken when markers exist
+###############################################################################
+tcltest::test $ctx "marker fast path lands via blockstart, not heuristics" {
+	# Same single-run timeline as Scenario 1, but with marker emulation on:
+	# step_back must consult `reverse blockstart` (used_marker set) and
+	# land on the recorded entry. All other tests leave markers disabled
+	# so they keep covering the heuristic fallback path.
+	set n 4
+	set tl [ldir_tl $n]
+	set instrs {0x4000 "ld bc,n" 0x4003 ldir 0x4005 ret}
+	mock::reset $tl
+	foreach {pc mnem} $instrs {
+		mock::set_instr $pc $mnem
+	}
+	set ::mock::markers_enabled 1
+	set ::mock::cur [expr {[llength $tl] - 1}]
+	step_back
+	set i [mock::cur]
+	tcltest::is $ctx {$::mock::used_marker} "blockstart consulted (fast path)"
+	tcltest::eq_hex $ctx [mock::pc $i] 0x4003 "landed on block addr"
+	tcltest::eq_hex $ctx [mock::bc $i] $n "counter back at maximum"
+	tcltest::eq $ctx [mock::time $i] 1 "landed at first-iteration boundary"
+	set ::mock::markers_enabled 0
 }
 
 ###############################################################################

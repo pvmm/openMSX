@@ -33,6 +33,10 @@ proc mock::reset {boundaries} {
 		lappend ::mock::bounds [dict create t [lindex $b 0] pc [lindex $b 1] bc [lindex $b 2]]
 	}
 	set ::mock::cur 0
+	# Marker emulation (see 'blockstart' below) is OFF by default so the
+	# existing tests keep exercising the heuristic fallback path.
+	set ::mock::markers_enabled 0
+	set ::mock::used_marker 0
 }
 
 # mock::set_instr <pc> <mnemonic>  -- what debug disasm <pc> returns (lindex 0)
@@ -107,8 +111,36 @@ proc reverse {args} {
 		status { return [dict create current [mock::time [mock::cur]]] }
 		goto   { mock::goto [lindex $rest 0]; return [mock::time [mock::cur]] }
 		goback { mock::goback [lindex $rest 0]; return [mock::time [mock::cur]] }
+		blockstart { return [mock::blockstart {*}$rest] }
 		default { error "mock: unknown reverse $sub" }
 	}
+}
+
+# mock::blockstart <pc> [bound]  -- synthetic counterpart of the C++
+# `reverse blockstart`: latest run start (matching boundary whose
+# predecessor does not match) at the given pc at or before bound
+# (default: current time). Only answers when markers are enabled; with
+# them off it errors exactly like a missing marker, so step_back takes
+# the heuristic fallback path. Records that it was consulted so tests
+# can assert which path step_back took.
+proc mock::blockstart {args} {
+	if {!$::mock::markers_enabled} {
+		error "mock: no markers recorded (fallback path)"
+	}
+	set ::mock::used_marker 1
+	set pc [lindex $args 0]
+	if {[llength $args] > 1} {
+		set bound [lindex $args 1]
+	} else {
+		set bound [mock::time [mock::cur]]
+	}
+	for {set i [expr {[mock::n] - 1}]} {$i >= 0} {incr i -1} {
+		if {[mock::time $i] > $bound} { continue }
+		if {[mock::pc $i] != $pc} { continue }
+		if {($i > 0) && ([mock::pc [expr {$i - 1}]] == $pc)} { continue }
+		return [mock::time $i]
+	}
+	error "mock: no recorded block-repeat execution at this address"
 }
 proc reg {name} {
 	switch -- $name {

@@ -45,7 +45,22 @@ Integration suite (needs an openMSX binary and the `C-BIOS_MSX1` machine):
     tclsh test/integration/run_integration.tcl
 
 Both print one `ok`/`FAIL` line per test and a final summary, and exit non-zero
-if any test failed.
+if any test failed (mock: 14 tests, integration: 6 tests).
+
+### Marker path vs heuristic fallback
+
+Current builds log one `BlockEntry` reverse marker per block-repeat
+execution in the CPU core (see `step_back.md`). `step_back` prefers the
+marker (`reverse blockstart <pc> [time]` → `reverse goto`) and only runs
+the Phase 3/4 heuristics when no marker exists. Consequences for the
+suites:
+
+* The mock `reverse` has marker emulation **off** by default, so all
+  mock tests except `marker fast path lands via blockstart` exercise the
+  heuristic fallback (that test enables markers and asserts the fast
+  path was consulted).
+* The integration tests run on real hardware with markers enabled, so
+  they exercise the marker path (plus the shared Phase 1/2 logic).
 
 ### Choosing the openMSX binary
 
@@ -89,6 +104,10 @@ the tests run without an assembler.
   * `msx_60hz_16kb_ldir_sub.rom` — shared `LDIR` subroutine at `0x4027`
     called with a different `BC` from three sites (5, then 3, then 4;
     `DI` so no IRQ); same block PC with varying initial counters.
+  * `msx_60hz_16kb_ldir_nested.rom` — outer `LDIR` at `0x4026`
+    (`BC=$2000`) interrupted by video IRQs whose `H.TIMI` hook runs its own
+    `INIR` (`B=4` reads of the VDP status port) at `0x4034`; nested blocks
+    at different PCs, suspended/resumed outer execution.
 
 ## What the tests assert
 

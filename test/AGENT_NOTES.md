@@ -117,7 +117,17 @@ keys/values of a `string map` pair list for XML escaping — wrap them in braces
     fires on the *first* execution of that instruction, which is the clean way
     to observe the just-completed block.
 
-## 9. Block-repeat `step_back` semantics that the tests pin down
+## 9. Block-entry markers (`reverse blockstart`) and `step_back` semantics
+
+Current builds log one `BlockEntry` reverse marker per block-repeat
+execution (CPU core, first-byte PC, entry-boundary time). Query it with
+`reverse blockstart <pc> [<time>]` (default time: now) — it returns the
+start time of the latest recorded execution at `<pc>` at or before the
+bound, or errors (`nok`) when reverse is disabled or nothing is recorded
+(old replay, block started before recording began). `step_back` tries the
+marker first and falls back to exponential-backoff heuristics otherwise.
+
+## 10. Block-repeat `step_back` semantics that the tests pin down
 
 For a block repeat instruction, a correct `step_back` lands on the block PC with
 the loop counter restored to its initial (maximum) value, in all of:
