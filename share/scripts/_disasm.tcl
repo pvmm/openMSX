@@ -509,11 +509,32 @@ proc step_back2 {} {
 		return
 	}
 
-	# Set up temporary probe breakpoints on both CPU probes to record the
-	# last blockInstruction trigger time. Each trigger overwrites the
-	# remembered time, so afterwards we have the latest block run start.
+	# If a block-repeat marker was recorded exactly at the current time, we are
+	# at the very first iteration of the run: a block instruction that has not
+	# executed yet has no earlier run start to rewind to, so fall back to a
+	# plain single-instruction step back. Without this guard the probe search
+	# below would attribute the current run start to a *previous* execution of
+	# the same block PC (e.g. an earlier pass of a loop) and jump there.
+	if {![catch {reverse blockstart $block_addr $start} bs]} {
+		if {$bs >= 0 && $bs >= ($start - 1e-9)} {
+			step_back
+			return
+		}
+	}
+
+	# Set up temporary probe breakpoints on both CPU probes. The callback only
+	# records triggers for OUR block address: a block instruction can be
+	# interrupted by an IRQ running a *different* block instruction, and a
+	# reverse replay also passes unrelated block runs (e.g. BIOS boot). Each
+	# matching trigger overwrites the remembered time, so afterwards we have the
+	# latest run start of this block lying before 'start'.
+	set ::disasm::sb2_block $block_addr
 	set ::disasm::sb2_last -1
-	set cb {set ::disasm::sb2_last [dict get [reverse status] current]}
+	set cb {
+		if {[reg PC] == $::disasm::sb2_block} {
+			set ::disasm::sb2_last [dict get [reverse status] current]
+		}
+	}
 	set cbid {}
 	foreach c {z80 r800} {
 		if {[catch {debug probe set_bp $c.blockInstruction {} $cb} id]} {
@@ -524,6 +545,7 @@ proc step_back2 {} {
 	if {![llength $cbid]} {
 		# No blockInstruction probes available: fall back to step_back
 		catch {unset ::disasm::sb2_last}
+		catch {unset ::disasm::sb2_block}
 		step_back
 		return
 	}
@@ -534,10 +556,10 @@ proc step_back2 {} {
 
 	# Rewind by a large amount, then run forward to the original time so the
 	# blockInstruction probe fires at every block run start we pass. Keep the
-	# LAST one (the start of the block run we were in). The trigger is reset
-	# right before each forward pass so only observations made while running
-	# forward are trusted. If the first (1000 iteration) rewind did not reach
-	# back past the run start, retry with a much larger (65536) rewind.
+	# LAST one before 'start' (the start of the run we are in). The trigger is
+	# reset right before each forward pass so only observations made while
+	# running forward are trusted. If the first (1000 iteration) rewind did not
+	# reach back past the run start, retry with a much larger (65536) rewind.
 	set target -1
 	foreach iters {1000 65536} {
 		set delta [expr {$iters * $per_iter * $cycle_period}]
@@ -549,9 +571,6 @@ proc step_back2 {} {
 		if {$cur < $start} {
 			reverse goto -novideo $start
 		}
-		# A trigger strictly before 'start' means the block run began there.
-		# A trigger exactly at 'start' means we were already at the run start,
-		# so there is nothing to rewind to (fall through to step_back).
 		if {$::disasm::sb2_last >= 0 && $::disasm::sb2_last < $start} {
 			set target $::disasm::sb2_last
 			break
@@ -563,6 +582,7 @@ proc step_back2 {} {
 		catch {debug probe remove_bp $id}
 	}
 	catch {unset ::disasm::sb2_last}
+	catch {unset ::disasm::sb2_block}
 
 	if {$target >= 0} {
 		reverse goto $target
