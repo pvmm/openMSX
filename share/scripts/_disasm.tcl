@@ -532,7 +532,23 @@ proc step_back2 {} {
 	set ::disasm::sb2_last -1
 	set cb {
 		if {[reg PC] == $::disasm::sb2_block} {
-			set ::disasm::sb2_last [dict get [reverse status] current]
+			# 'reverse status current' is 0.0 while reverse is not collecting
+			# (and at emulation time zero). A probe trigger happens during a
+			# collecting replay, so 0.0 is never a usable run start: ignore it
+			# rather than letting it overwrite a real trigger or be accepted as
+			# "found" (the not-found sentinel is -1).
+			set t [dict get [reverse status] current]
+			if {$t != 0.0} {
+				# 'lastBlockPC' is not serialized, so after restoring a
+				# snapshot the probe also fires for an IRQ *resume* in the
+				# middle of a block run. Only accept a trigger when the
+				# (replay-safe) block-start marker pins the run start at the
+				# same time, i.e. a genuine run start.
+				if {![catch {reverse blockstart $::disasm::sb2_block $t} bs] &&
+				    $bs >= ($t - 1e-9)} {
+					set ::disasm::sb2_last $t
+				}
+			}
 		}
 	}
 	set cbid {}
