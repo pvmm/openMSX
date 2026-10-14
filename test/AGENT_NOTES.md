@@ -4,6 +4,16 @@ Hard-won facts for anyone (human or agent) writing tests or tooling that
 controls openMSX from outside, and for working with openMSX's Tcl scripting.
 These were all verified against this repository's source and a real build.
 
+The test framework (`test/common/tcltest.tcl`) supports:
+- `tcltest::eq_fp <ctx> <actual> <expected> <msg> [<tol>]` for floating-point
+  comparisons within tolerance.
+- test registration and filtering: `tcltest::test` registers unique test names;
+  test names must be single tokens with no spaces. Pass `--list-tests`/`-l`
+  to list, or set `TCLTEST_FILTER`/positional arg to run only matching tests
+  (exact or substring). `run_integration.tcl` forwards filters via
+  `TCLTEST_FILTER`. `omsx::machine_time` returns the current emulated machine
+  time from `machine_info time`.
+
 ## 1. The headless control protocol (`-control stdio`)
 
 Start openMSX with `-control stdio` to speak the XML control protocol over
@@ -124,8 +134,7 @@ The CPU keeps a small saved history of block-repeat executions (PC, SP,
 start time and an active flag).  It contains suspended and completed runs,
 is serialized in the CPU savestate, and is queried with
 `reverse blockstart <pc> <sp>`.  The command returns the start time of the
-latest matching run, or errors (`nok`) when the global
-`debug_block_instructions` setting is disabled or no matching run is in the
+latest matching run, or errors (`nok`) when no matching run is in the
 history.  `step_back` uses this command and otherwise falls back to the
 generic reverse search.
 
