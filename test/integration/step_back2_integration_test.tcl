@@ -157,6 +157,26 @@ tcltest::test $ctx "step_back2 twice at block start steps one instruction back" 
 	omsx::exit
 }
 
+# 6) Outer LDIR interrupted by a 60Hz IRQ whose handler runs a nested INIR. The
+#    outer run spans IRQ resumptions, and `lastBlockPC` (the probe's once-per-run
+#    bookkeeping) is NOT serialized, so a replay from a mid-run snapshot reports
+#    an IRQ *resume* as a block run start. step_back2 must reject those (via the
+#    replay-safe block-start marker) and rewind the outer LDIR to its true first
+#    iteration (BC=$2000), rather than landing mid-run.
+tcltest::test $ctx "nested inir inside outer ldir rewinds outer to first iteration" {
+	it::boot_cart [it::rom msx_60hz_16kb_ldir_nested.rom]
+	set bp [omsx::set_bp "0x4028"]              ;# JR FOREVER (after outer LDIR)
+	it::run_to_bp
+	tcltest::eq_hex $ctx [it::reg pc] 0x4028 "break fires after outer block"
+	omsx::step_back2
+	tcltest::eq_hex $ctx [it::reg pc] 0x4026 "lands on outer LDIR"
+	tcltest::eq_hex $ctx [it::reg bc] 0x2000 "BC restored to 8192 (first iteration)"
+	tcltest::eq_hex $ctx [it::reg hl] 0x4000 "HL restored to source"
+	tcltest::eq_hex $ctx [it::reg de] 0xc000 "DE restored to dest"
+	omsx::rm_bp $bp
+	omsx::exit
+}
+
 set fails [tcltest::summary $ctx]
 if {$fails > 0} { exit 1 }
 exit 0
