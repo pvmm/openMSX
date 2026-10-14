@@ -509,46 +509,59 @@ proc step_back2 {} {
 		return
 	}
 
-	# Get block trace/probe name
-	set name [block_trace]
-	if {$name eq ""} {
-		# Try to ensure trace exists
-		set name "[get_active_cpu].blockInstruction"
-		catch {debug trace probe $name}
-	}
-
-	# Set up temporary probe callback to record last trigger time
+	# Set up temporary probe breakpoints on both CPU probes to record the
+	# last blockInstruction trigger time. Each trigger overwrites the
+	# remembered time, so afterwards we have the latest block run start.
 	set ::disasm::sb2_last -1
-	set cb "set ::disasm::sb2_last \[lindex \$::debug_trace_event 0\]"
-	set cbid [debug trace add $name $cb]
+	set cb {set ::disasm::sb2_last [dict get [reverse status] current]}
+	set cbid {}
+	foreach c {z80 r800} {
+		if {[catch {debug probe set_bp $c.blockInstruction {} $cb} id]} {
+			continue
+		}
+		lappend cbid $id
+	}
+	if {![llength $cbid]} {
+		# No blockInstruction probes available: fall back to step_back
+		catch {unset ::disasm::sb2_last}
+		step_back
+		return
+	}
 
 	# Estimate per-iteration cycles
 	set cycle_period [expr {1.0 / [machine_info ${cpu}_freq]}]
 	set per_iter [expr {($cpu eq "z80") ? 30 : 40}]
 
-	# Try large steps back
+	# Rewind by a large amount, then run forward to the original time so the
+	# blockInstruction probe fires at every block run start we pass. Keep the
+	# LAST one (the start of the block run we were in). The trigger is reset
+	# right before each forward pass so only observations made while running
+	# forward are trusted. If the first (1000 iteration) rewind did not reach
+	# back past the run start, retry with a much larger (65536) rewind.
+	set target -1
 	foreach iters {1000 65536} {
-		if {$::disasm::sb2_last >= 0} break
 		set delta [expr {$iters * $per_iter * $cycle_period}]
 		if {$delta > 0} {
-			reverse goback -novideo $delta
+			catch {reverse goback -novideo $delta}
+		}
+		set ::disasm::sb2_last -1
+		set cur [dict get [reverse status] "current"]
+		if {$cur < $start} {
+			reverse goto -novideo $start
+		}
+		# A trigger strictly before 'start' means the block run began there.
+		# A trigger exactly at 'start' means we were already at the run start,
+		# so there is nothing to rewind to (fall through to step_back).
+		if {$::disasm::sb2_last >= 0 && $::disasm::sb2_last < $start} {
+			set target $::disasm::sb2_last
+			break
 		}
 	}
 
-	# Run forward to original start time
-	set cur [dict get [reverse status] "current"]
-	if {$cur < $start} {
-		reverse goto -novideo $start
-	}
-
-	# Determine target
-	set target -1
-	if {$::disasm::sb2_last >= 0 && $::disasm::sb2_last <= $start} {
-		set target $::disasm::sb2_last
-	}
-
 	# Cleanup
-	catch {debug trace remove $name $cbid}
+	foreach id $cbid {
+		catch {debug probe remove_bp $id}
+	}
 	catch {unset ::disasm::sb2_last}
 
 	if {$target >= 0} {
