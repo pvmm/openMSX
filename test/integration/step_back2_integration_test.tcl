@@ -138,6 +138,25 @@ tcltest::test $ctx "ldir inside DJNZ loop mid-block rewinds to first iteration" 
 	omsx::exit
 }
 
+# 5) Calling step_back2 while already AT the block run start must fall back to a
+#    plain single-instruction step back: the run has not executed its first
+#    iteration yet, so there is no earlier start of the CURRENT execution to
+#    rewind to. This guards against the probe search attributing the start to a
+#    previous run of the same block PC (or to a stale trigger elsewhere) and
+#    jumping to the wrong point in time.
+tcltest::test $ctx "step_back2 twice at block start steps one instruction back" {
+	it::boot_cart [it::rom msx_60hz_16kb_ldir_loop.rom]
+	set bp [omsx::set_bp "0x401b"]              ;# POP BC, right after the LDIR
+	it::run_to_bp
+	tcltest::eq_hex $ctx [it::reg pc] 0x401b "break fires after block"
+	omsx::step_back2
+	tcltest::eq_hex $ctx [it::reg pc] 0x4019 "first step_back2 lands on LDIR"
+	omsx::step_back2
+	tcltest::eq_hex $ctx [it::reg pc] 0x4016 "second step_back2 steps before LDIR"
+	omsx::rm_bp $bp
+	omsx::exit
+}
+
 set fails [tcltest::summary $ctx]
 if {$fails > 0} { exit 1 }
 exit 0
