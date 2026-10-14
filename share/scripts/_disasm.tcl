@@ -477,6 +477,90 @@ proc step_back {} {
 #
 # skip one instruction
 #
+set_help_text step_back2 \
+{Step back variant that uses blockInstruction probe to find the last block run start.\
+If currently in/at a block instruction, it steps back by a large amount, records\
+the last blockInstruction trigger time via a temporary probe callback, runs\
+forward to the original time, then jumps to that last trigger. If no trigger\
+is observed in 1000 block iterations, it retries with 65536.}
+proc step_back2 {} {
+	# 'z80' or 'r800'
+	set cpu [get_active_cpu]
+
+	# Get time of the start instruction.
+	set start [dict get [reverse status] "current"]
+
+	set pc [reg PC]
+	set in_block 0
+	set block_addr $pc
+	if {![is_block_instr $block_addr]} {
+		set cand [expr {$block_addr - 2}]
+		if {$cand >= 0 && [is_block_instr $cand]} {
+			set block_addr $cand
+			set in_block 1
+		}
+	} else {
+		set in_block 1
+	}
+
+	if {!$in_block} {
+		# Fall back to regular step_back if not in a block instruction context
+		step_back
+		return
+	}
+
+	# Get block trace/probe name
+	set name [block_trace]
+	if {$name eq ""} {
+		# Try to ensure trace exists
+		set name "[get_active_cpu].blockInstruction"
+		catch {debug trace probe $name}
+	}
+
+	# Set up temporary probe callback to record last trigger time
+	set ::disasm::sb2_last -1
+	set cb "set ::disasm::sb2_last \[lindex \$::debug_trace_event 0\]"
+	set cbid [debug trace add $name $cb]
+
+	# Estimate per-iteration cycles
+	set cycle_period [expr {1.0 / [machine_info ${cpu}_freq]}]
+	set per_iter [expr {($cpu eq "z80") ? 30 : 40}]
+
+	# Try large steps back
+	foreach iters {1000 65536} {
+		if {$::disasm::sb2_last >= 0} break
+		set delta [expr {$iters * $per_iter * $cycle_period}]
+		if {$delta > 0} {
+			reverse goback -novideo $delta
+		}
+	}
+
+	# Run forward to original start time
+	set cur [dict get [reverse status] "current"]
+	if {$cur < $start} {
+		reverse goto -novideo $start
+	}
+
+	# Determine target
+	set target -1
+	if {$::disasm::sb2_last >= 0 && $::disasm::sb2_last <= $start} {
+		set target $::disasm::sb2_last
+	}
+
+	# Cleanup
+	catch {debug trace remove $name $cbid}
+	catch {unset ::disasm::sb2_last}
+
+	if {$target >= 0} {
+		reverse goto $target
+		return
+	}
+
+	# Fallback to regular step_back
+	step_back
+	return
+}
+
 set_help_text skip_instruction \
 {Skip the current instruction. In other words increase the program counter with the length of the current instruction.}
 proc skip_instruction {} {
@@ -508,6 +592,7 @@ namespace export run_to
 namespace export toggle_breaked
 namespace export step_over
 namespace export step_back
+namespace export step_back2
 namespace export step_out
 namespace export step_in
 namespace export step
