@@ -275,39 +275,6 @@ proc step_over {} {
 	}
 }
 
-
-#
-# Block instructions (LDIR, LDDR, CPIR, ...)
-#
-# The 'blockInstruction' probe of the active CPU fires exactly once at the
-# start of every block instruction run. A trace attached to that probe
-# therefore yields the exact times at which such runs started. 'step_back'
-# uses that to jump back to the start of a run instead of stopping in the
-# middle of it.
-#
-# That trace has to be attached _before_ the run we want to step back from
-# is started, so this normally happens as soon as a machine is created, see
-# 'reverse::attach_block_trace'. We still (re)attach it here as a fall-back
-# for the case where that didn't happen (e.g. a machine was created before
-# this script was even loaded). A run that already started before attaching
-# is simply not recorded, in that case we just fall back to a plain
-# single-instruction step back.
-#
-
-# Returns the name of the trace that records the start of every block
-# instruction run, or an empty string if there is no such trace.
-proc block_trace {} {
-	# 'z80' or 'r800'
-	set name "[get_active_cpu].blockInstruction"
-	# 'debug trace list' fails if the trace doesn't exist (yet)
-	set failed [catch {debug trace list $name}]
-	if {$failed} {
-		set failed [catch {debug trace probe $name}]
-		if {$failed} { return "" }
-	}
-	return $name
-}
-
 # Returns the time at which the most recent block instruction run that
 # started at or before $time was started, or -1 if there is no such run.
 proc latest_block_run {name time} {
@@ -421,13 +388,6 @@ proc step_back {} {
 	}
 	if {[is_block_instr [reg PC]]} {
 		set run_addr [reg PC]
-		set name [block_trace]
-		if {$name ne ""} {
-			set t [latest_block_run $name $start]
-			if {$t >= 0 && $t < $start} {
-				set run_start $t
-			}
-		}
 	}
 
 	# Go back till a moment that's certainly before the start instruction.
