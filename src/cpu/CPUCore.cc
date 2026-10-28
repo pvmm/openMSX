@@ -4076,26 +4076,29 @@ template<typename T> NEVER_INLINE void CPUCore<T>::blockInstructionEnd()
 // Bookkeeping for block-repeat executions, see CPUCore.hh.
 // Called once per repeat-opcode dispatch (ldir/lddr/cpir/cpdr/inir/indr/
 // otir/otdr only, never for the single-step variants). A dispatch whose PC
-// is still on top of the stack is either another iteration of the running
-// block or an IRQ/NMI resume of a suspended one: both log nothing. Any
-// other PC is a fresh entry (first iteration, loop re-entry, nested
-// handler block, later call site): push it and, when reverse data is being
-// collected at the live frontier, log one BlockEntry marker. Emission is
-// skipped while replaying (the marker is already in the log; re-emitting
-// would truncate the future via stopReplay) and while not collecting.
+// and SP are still on top of the stack is either another iteration of the
+// running block or an IRQ/NMI resume of a suspended one: both log nothing.
+// Any other PC/SP pair is a fresh entry (first iteration, loop re-entry,
+// nested handler block, later call site, or a same-PC reentrant run that is
+// distinguished by its deeper stack pointer): push it and, when reverse
+// data is being collected at the live frontier, log one BlockEntry marker.
+// Emission is skipped while replaying (the marker is already in the log;
+// re-emitting would truncate the future via stopReplay) and while not
+// collecting.
 template<typename T> void CPUCore<T>::noteBlockRepeatEntry()
 {
 	// At repeat-opcode dispatch PC points at the second instruction byte
 	// (CASE(ED) already advanced past the prefix); instruction boundaries,
 	// 'reg PC', breakpoints and the disassembler all use the first byte.
 	uint16_t pc = getPC() - 1;
-	if (!blockStack.empty() && blockStack.back() == pc) {
+	uint16_t sp = getSP();
+	if (!blockStack.empty() && (blockStack.back().pc == pc) && (blockStack.back().sp == sp)) {
 		return;
 	}
 	if (blockStack.size() >= 8) {
 		blockStack.erase(begin(blockStack)); // drop oldest, keep recent
 	}
-	blockStack.push_back(pc);
+	blockStack.push_back({pc, sp, T::getTime()});
 	const auto& reverse = motherboard.getReverseManager();
 	if (reverse.isCollecting() && !reverse.isReplaying()) {
 		motherboard.getStateChangeDistributor().distributeNew<BlockEntry>(
@@ -4110,9 +4113,21 @@ template<typename T> void CPUCore<T>::noteBlockRepeatEntry()
 template<typename T> void CPUCore<T>::noteBlockRepeatEnd()
 {
 	// Same first-byte convention as noteBlockRepeatEntry().
-	if (!blockStack.empty() && blockStack.back() == uint16_t(getPC() - 1)) {
+	if (!blockStack.empty() && blockStack.back().pc == uint16_t(getPC() - 1)) {
 		blockStack.pop_back();
 	}
+}
+
+template<typename T> std::optional<EmuTime> CPUCore<T>::getBlockStart(
+	uint16_t pc, uint16_t sp) const
+{
+	// Innermost (most recently entered) context first.
+	for (auto it = blockStack.rbegin(); it != blockStack.rend(); ++it) {
+		if ((it->pc == pc) && (it->sp == sp)) {
+			return it->time;
+		}
+	}
+	return std::nullopt;
 }
 
 template<typename T> inline II CPUCore<T>::BLOCK_CP(int increase, bool repeat) {
@@ -4465,6 +4480,8 @@ template<typename T> template<Reg16 REG> II CPUCore<T>::muluw_hl_SS() {
 //  3 -> timing of the emulation changed (no changes in serialization)
 //  4 -> timing of the emulation changed again (see doc/internal/r800-call.txt)
 //  5 -> added serialization of nmiEdge
+//  6 -> added serialization of blockStack (PC only)
+//  7 -> blockStack entries also store SP and start time
 template<typename T> template<typename Archive>
 void CPUCore<T>::serialize(Archive& ar, unsigned version)
 {
@@ -4488,9 +4505,11 @@ void CPUCore<T>::serialize(Archive& ar, unsigned version)
 		ar.serialize("nmiEdge", nmiEdge);
 	}
 
-	if (ar.versionBelow(version, 6)) {
-		// No block-repeat context was recorded: any in-flight block loses
-		// its entry marker (its resume will look like a fresh entry).
+	if (ar.versionBelow(version, 7)) {
+		// Older versions either had no block-repeat context (before 6) or
+		// only stored the PC (6). Neither can be loaded into the current
+		// BlockContext representation: forget any in-flight block (its
+		// resume will look like a fresh entry).
 		blockStack.clear();
 	} else {
 		ar.serialize("blockStack", blockStack);

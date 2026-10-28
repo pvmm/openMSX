@@ -11,6 +11,7 @@
 #include "Keyboard.hh"
 #include "MSXCliComm.hh"
 #include "MSXCommandController.hh"
+#include "MSXCPU.hh"
 #include "MSXMixer.hh"
 #include "MSXMotherBoard.hh"
 #include "Reactor.hh"
@@ -324,6 +325,26 @@ void ReverseManager::blockStart(std::span<const TclObject> tokens, TclObject& re
 	throw CommandException(
 		"No recorded block-repeat execution at this address "
 		"(old replay, or the block started before recording began).");
+}
+
+void ReverseManager::blockContext(std::span<const TclObject> tokens, TclObject& result)
+{
+	// usage: reverse blockcontext <pc> <sp>
+	// Returns the start time of the most recent block-repeat execution that
+	// was entered with the given PC and SP. This inspects the CPU's
+	// suspended block contexts (which are part of the savestate) instead of
+	// the recorded event log, so it also works right after loading a
+	// snapshot. Throws when no matching (unfinished) block is present.
+	auto& interp = motherBoard.getReactor().getInterpreter();
+	if (tokens.size() != 4) throw SyntaxError();
+	uint16_t pc = narrow_cast<uint16_t>(tokens[2].getInt(interp));
+	uint16_t sp = narrow_cast<uint16_t>(tokens[3].getInt(interp));
+	auto time = motherBoard.getCPU().getBlockStart(pc, sp);
+	if (!time) {
+		throw CommandException(
+			"No unfinished block-repeat execution with this PC and SP.");
+	}
+	result = time->toDouble();
 }
 
 void ReverseManager::goTo(EmuTime target, bool noVideo)
@@ -992,6 +1013,7 @@ void ReverseManager::ReverseCmd::execute(std::span<const TclObject> tokens, TclO
 		"goback",     [&]{ manager.goBack(tokens); },
 		"goto",       [&]{ manager.goTo(tokens); },
 		"blockstart", [&]{ manager.blockStart(tokens, result); },
+		"blockcontext", [&]{ manager.blockContext(tokens, result); },
 		"savereplay", [&]{ manager.saveReplay(interp, tokens, result); },
 		"loadreplay", [&]{ manager.loadReplay(interp, tokens, result); },
 		"viewonlymode", [&]{
@@ -1020,6 +1042,7 @@ std::string ReverseManager::ReverseCmd::help(std::span<const TclObject> /*tokens
 	       "goback <n>          go back <n> seconds in time\n"
 	       "goto <time>         go to an absolute moment in time\n"
 	       "blockstart <pc> [time]  start time of the latest recorded block-repeat execution at <pc> (default time: now)\n"
+	       "blockcontext <pc> <sp>  start time of the latest unfinished block-repeat execution entered with <pc> and <sp>\n"
 	       "viewonlymode <bool> switch viewonly mode on or off\n"
 	       "truncatereplay      stop replaying and remove all 'future' data\n"
 	       "savereplay [<name>] save the first snapshot and all replay data as a 'replay' (with optional name)\n"
@@ -1032,7 +1055,7 @@ void ReverseManager::ReverseCmd::tabCompletion(std::vector<std::string>& tokens)
 	if (tokens.size() == 2) {
 		static constexpr std::array subCommands = {
 			"start"sv, "stop"sv, "status"sv, "goback"sv, "goto"sv,
-			"blockstart"sv,
+			"blockstart"sv, "blockcontext"sv,
 			"savereplay"sv, "loadreplay"sv, "viewonlymode"sv,
 			"truncatereplay"sv,
 		};
