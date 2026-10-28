@@ -400,14 +400,24 @@ proc step_back {} {
 		if {$cand2 >= 0} { set marker_candidate $cand2 } else { set marker_candidate "" }
 	}
 	if {$marker_candidate ne "" && [is_block_instr $marker_candidate]} {
-		if {![catch {reverse blockstart $marker_candidate $start} marker_time]} {
-			if {$marker_time >= 0 && $marker_time < $start} {
-				reverse goto $marker_time
-				return
-			}
-			# If marker_time == start, we're at exact run start - don't use marker,
-			# fall through to normal single-instruction step back
+		# Prefer the CPU's suspended block contexts: they also store the
+		# stack pointer (so a nested run at the same PC is distinguished)
+		# and are part of the savestate (so they survive a reverse goto).
+		set marker_time -1
+		if {[catch {reverse blockcontext $marker_candidate [reg SP]} t]} {
+			# Fall back to the recorded event log; this also covers a block
+			# that already completed and was thus popped from the contexts.
+			catch {set t [reverse blockstart $marker_candidate $start]}
 		}
+		if {[string is double -strict $t] && ($t >= 0) && ($t < $start)} {
+			set marker_time $t
+		}
+		if {$marker_time >= 0} {
+			reverse goto $marker_time
+			return
+		}
+		# If the marker time equals $start we are exactly at the run start:
+		# don't use it, fall through to the regular single-instruction step.
 	}
 	if {[is_block_instr [reg PC]]} {
 		set run_addr [reg PC]
