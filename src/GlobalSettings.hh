@@ -37,6 +37,9 @@ public:
 	[[nodiscard]] BooleanSetting& getAutoSaveSetting() {
 		return autoSaveSetting;
 	}
+	[[nodiscard]] BooleanSetting& getDebugBlockInstructionsSetting() {
+		return debugBlockInstructionsSetting;
+	}
 	[[nodiscard]] StringSetting& getUMRCallBackSetting() {
 		return umrCallBackSetting;
 	}
@@ -66,6 +69,7 @@ private:
 	BooleanSetting pauseSetting;
 	BooleanSetting powerSetting;
 	BooleanSetting autoSaveSetting;
+	BooleanSetting debugBlockInstructionsSetting;
 	StringSetting  umrCallBackSetting;
 	StringSetting  invalidPsgDirectionsSetting;
 	StringSetting  invalidPpiModeSetting;
