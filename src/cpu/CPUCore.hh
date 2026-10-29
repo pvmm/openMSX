@@ -13,8 +13,10 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
+#include <vector>
 
 namespace openmsx {
 
@@ -121,6 +123,13 @@ public:
 	[[nodiscard]] BooleanSetting& getFreqLockedSetting() { return freqLocked; }
 	[[nodiscard]] IntegerSetting& getFreqValueSetting()  { return freqValue; }
 
+	/** Return the start time of the most recent suspended block-repeat
+	  * execution entered with the given PC and SP. Searches the block
+	  * contexts from innermost to outermost. Returns no value when no
+	  * such context exists (e.g. the block already finished).
+	  */
+	[[nodiscard]] std::optional<EmuTime> getBlockStart(uint16_t pc, uint16_t sp) const;
+
 	template<typename Archive>
 	void serialize(Archive& ar, unsigned version);
 
@@ -162,6 +171,28 @@ private:
 	 * Set to false when the CPU jumps to the NMI handler address.
 	 */
 	bool nmiEdge = false;
+
+	/**
+	 * Suspended block-repeat executions, innermost last. Pushed on a repeat
+	 * opcode dispatch when the (PC, SP) pair differs from the top (new run,
+	 * loop re-entry, nested block, or same-PC reentrant run); popped when
+	 * the run finishes. An IRQ/NMI resume re-dispatches the same pair, so it
+	 * does not add a context. Cleared on reset; serialized with the CPU
+	 * state.
+	 *
+	 * PC is the instruction-start address (as in 'reg PC'), not the second
+	 * ED-prefix byte seen at dispatch. SP distinguishes same-PC nested runs.
+	 * Time is the run's start time (used by 'reverse blockcontext'/step_back).
+	 */
+	struct BlockContext {
+		uint16_t pc = 0;
+		uint16_t sp = 0;
+		EmuTime time = EmuTime::zero();
+		template<typename Archive> void serialize(Archive& ar, unsigned /*version*/) {
+			ar.serialize("pc", pc, "sp", sp, "time", time);
+		}
+	};
+	std::vector<BlockContext> blockStack;
 
 	std::atomic<bool> exitLoop = false;
 
@@ -449,6 +480,12 @@ private:
 	inline II otdr();
 	inline II otir();
 
+	// Bookkeeping for block-repeat executions (LDIR/LDDR/CPIR/CPDR/
+	// INIR/INDR/OTIR/OTDR), used to log BlockEntry reverse markers.
+	// Called once per repeat-opcode dispatch, not per single-step variant.
+	inline void noteBlockRepeatEntry();
+	inline void noteBlockRepeatEnd();
+
 	template<int EE = 0> inline II nop();
 	inline II ccf();
 	inline II cpl();
@@ -477,8 +514,8 @@ private:
 
 class Z80TYPE;
 class R800TYPE;
-SERIALIZE_CLASS_VERSION(CPUCore<Z80TYPE>,  5);
-SERIALIZE_CLASS_VERSION(CPUCore<R800TYPE>, 5); // keep these two the same
+SERIALIZE_CLASS_VERSION(CPUCore<Z80TYPE>,  6);
+SERIALIZE_CLASS_VERSION(CPUCore<R800TYPE>, 6); // keep these two the same
 
 } // namespace openmsx
 

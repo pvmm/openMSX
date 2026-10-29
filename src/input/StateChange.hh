@@ -52,6 +52,36 @@ public:
 };
 
 
+/** Recorded when the CPU starts a block-repeat instruction (LDIR/LDDR/
+  * CPIR/CPDR/INIR/INDR/OTIR/OTDR): one entry per block execution, never
+  * per iteration. An IRQ resume logs nothing (it re-dispatches the PC
+  * still on the CPU's block-context stack), so the latest entry for a
+  * given PC is always a true execution start. Used by reverse/step_back
+  * to rewind a whole block.
+  */
+class BlockEntry final : public StateChangeBase
+{
+public:
+	BlockEntry() = default; // for serialize
+	BlockEntry(EmuTime time_, uint16_t pc_, uint16_t counter_)
+		: StateChangeBase(time_)
+		, pc(pc_), counter(counter_) {}
+
+	[[nodiscard]] uint16_t getPC()      const { return pc; }
+	[[nodiscard]] uint16_t getCounter() const { return counter; }
+
+	template<typename Archive> void serialize(Archive& ar, unsigned /*version*/)
+	{
+		ar.template serializeBase<StateChangeBase>(*this);
+		ar.serialize("pc",      pc,
+		             "counter", counter);
+	}
+private:
+	uint16_t pc = 0;
+	uint16_t counter = 0;
+};
+
+
 class KeyMatrixState final : public StateChangeBase
 {
 public:
@@ -443,6 +473,7 @@ SERIALIZE_CLASS_VERSION(MouseState, 2);
 
 using StateChange = std::variant<
 	EndLogEvent,
+	BlockEntry,
 	KeyMatrixState,
 	ArkanoidState,
 	MSXCommandEvent,
@@ -469,6 +500,7 @@ inline auto getTime(const StateChange& event)
 template<> struct Serializer<StateChange> : VariantSerializer<StateChange> {
 	static constexpr auto stateChangeInfo = std::to_array<enum_string<size_t>>({
 		{"EndLog",              index<EndLogEvent>        },
+		{"BlockEntry",          index<BlockEntry>          },
 		{"KeyMatrixState",      index<KeyMatrixState>     },
 		{"ArkanoidState",       index<ArkanoidState>      },
 		{"MSXCommandEvent",     index<MSXCommandEvent>    },
