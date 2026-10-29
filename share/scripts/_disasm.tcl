@@ -275,15 +275,30 @@ proc step_over {} {
 	}
 }
 
+# Is the instruction at $address a block instruction?
+proc is_block_instr {address} {
+	set instr ""
+	set failed [catch {set instr [lindex [debug disasm $address] 0]}]
+	if {$failed} {
+		return 0
+	}
+	foreach p {ldir* lddr* cpir* cpdr* inir* indr* otir* otdr*} {
+		if {[string match $p $instr]} { return 1 }
+	}
+	return 0
+}
+
 
 #
 # step_back
 #
 set_help_text step_back \
 {Step back. Go back in time till right before the last instruction was
-executed. Note that this operation is relatively slow (compared to the other
-step functions). Also the reverse feature must be enabled for this to work
-(normally it's enabled by default).}
+executed. Block instructions (LDIR, LDDR, CPIR, ...) are treated as a single
+instruction, so if the last instruction was part of such a run this jumps back
+to the start of that run. Note that this operation is relatively slow (compared
+to the other step functions). Also the reverse feature must be enabled for this
+to work (normally it's enabled by default).}
 proc step_back {} {
 	# In the past this proc was implemented totally different. It's worth
 	# mentioning this old algorithm and explain why it wasn't good enough.
@@ -324,6 +339,44 @@ proc step_back {} {
 	# Get time of the start instruction.
 	set start [dict get [reverse status] "current"]
 
+	# If the current instruction is a block instruction (LDIR, CPIR, ...) and
+	# we're not exactly at its first iteration, remember where this run
+	# started. We'll jump back to that point at the end, so that a block
+	# instruction is stepped back over as a whole. (Which is the reverse of
+	# what 'step_over' does: it runs such a run to completion in one go.)
+	set run_start -1
+	set run_addr ""
+	# Try marker for current PC if it's a block, or for (current PC - 2) if that might be
+	# the block that just completed (ED-prefixed block instructions are 2 bytes).
+	set marker_candidate [reg PC]
+	if {![is_block_instr $marker_candidate]} {
+		set cand2 [expr {$marker_candidate - 2}]
+		if {$cand2 >= 0} { set marker_candidate $cand2 } else { set marker_candidate "" }
+	}
+	if {$marker_candidate ne "" && [is_block_instr $marker_candidate]} {
+		# Prefer the CPU's suspended block contexts: they also store the
+		# stack pointer (so a nested run at the same PC is distinguished)
+		# and are part of the savestate (so they survive a reverse goto).
+		set marker_time -1
+		if {[catch {reverse blockcontext $marker_candidate [reg SP]} t]} {
+			# Fall back to the recorded event log; this also covers a block
+			# that already completed and was thus popped from the contexts.
+			catch {set t [reverse blockstart $marker_candidate $start]}
+		}
+		if {[string is double -strict $t] && ($t >= 0) && ($t < $start)} {
+			set marker_time $t
+		}
+		if {$marker_time >= 0} {
+			reverse goto $marker_time
+			return
+		}
+		# If the marker time equals $start we are exactly at the run start:
+		# don't use it, fall through to the regular single-instruction step.
+	}
+	if {[is_block_instr [reg PC]]} {
+		set run_addr [reg PC]
+	}
+
 	# Go back till a moment that's certainly before the start instruction.
 	reverse goback -novideo $max_instr_len
 	set curr [dict get [reverse status] "current"]
@@ -354,6 +407,22 @@ proc step_back {} {
 			break
 		}
 		set curr $next
+	}
+
+	if {$run_start >= 0} {
+		# We're in the middle of a block instruction run, so instead of
+		# stopping one single iteration back we go all the way back to the
+		# start of the run. Note that (only here) we don't pass the
+		# '-novideo' flag.
+		reverse goto $run_start
+		if {[reg PC] == $run_addr} {
+			return
+		}
+		# The recorded run turned out to be a different (earlier) one, e.g.
+		# because the trace was only attached in the middle of this run.
+		# Undo and fall back to the regular single-instruction step back.
+		reverse goto $curr
+		return
 	}
 
 	# The previous step was the correct one, so go back there.

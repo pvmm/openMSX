@@ -13,8 +13,10 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
+#include <vector>
 
 namespace openmsx {
 
@@ -121,6 +123,14 @@ public:
 	[[nodiscard]] BooleanSetting& getFreqLockedSetting() { return freqLocked; }
 	[[nodiscard]] IntegerSetting& getFreqValueSetting()  { return freqValue; }
 
+	/** Return the start time of the most recent block-repeat execution
+	  * that was entered with the given PC and SP. This searches the
+	  * currently suspended block contexts (innermost first). Returns no
+	  * value when no such context is present (e.g. the block already
+	  * finished, or it was started before a savestate was loaded).
+	  */
+	[[nodiscard]] std::optional<EmuTime> getBlockStart(uint16_t pc, uint16_t sp) const;
+
 	template<typename Archive>
 	void serialize(Archive& ar, unsigned version);
 
@@ -162,6 +172,30 @@ private:
 	 * Set to false when the CPU jumps to the NMI handler address.
 	 */
 	bool nmiEdge = false;
+
+	/**
+	 * Contexts of currently suspended block-repeat executions, innermost last.
+	 * Pushed when a repeat opcode is dispatched with a different (PC, SP)
+	 * pair than the one on top (fresh entry, including loop re-entries,
+	 * nested handler blocks and same-PC reentrant runs), popped when its
+	 * final iteration completes. An IRQ/NMI resume re-dispatches the PC and
+	 * SP that are still on top, so it correctly logs no new entry. Cleared
+	 * on reset; serialized with the CPU state.
+	 * PCs are instruction-start addresses (first byte, as in 'reg PC' and
+	 * the disassembler), not the second ED-prefix byte seen at dispatch.
+	 * The SP distinguishes a nested block that happens to run at the same
+	 * PC as the suspended outer one. The stored time is the start time of
+	 * that run (used by 'reverse blockcontext' / step_back).
+	 */
+	struct BlockContext {
+		uint16_t pc = 0;
+		uint16_t sp = 0;
+		EmuTime time = EmuTime::zero();
+		template<typename Archive> void serialize(Archive& ar, unsigned /*version*/) {
+			ar.serialize("pc", pc, "sp", sp, "time", time);
+		}
+	};
+	std::vector<BlockContext> blockStack;
 
 	std::atomic<bool> exitLoop = false;
 
@@ -449,6 +483,14 @@ private:
 	inline II otdr();
 	inline II otir();
 
+	// Bookkeeping for block-repeat executions (LDIR/LDDR/CPIR/CPDR/
+	// INIR/INDR/OTIR/OTDR), used to log BlockEntry reverse markers.
+	// Called once per repeat-opcode dispatch (not per single-step
+	// variant); the per-dispatch cost is a couple of predictable
+	// branches. See CPUCore.cc for the stack-discipline rationale.
+	inline void noteBlockRepeatEntry();
+	inline void noteBlockRepeatEnd();
+
 	template<int EE = 0> inline II nop();
 	inline II ccf();
 	inline II cpl();
@@ -477,8 +519,8 @@ private:
 
 class Z80TYPE;
 class R800TYPE;
-SERIALIZE_CLASS_VERSION(CPUCore<Z80TYPE>,  5);
-SERIALIZE_CLASS_VERSION(CPUCore<R800TYPE>, 5); // keep these two the same
+SERIALIZE_CLASS_VERSION(CPUCore<Z80TYPE>,  7);
+SERIALIZE_CLASS_VERSION(CPUCore<R800TYPE>, 7); // keep these two the same
 
 } // namespace openmsx
 
