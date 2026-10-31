@@ -17,9 +17,8 @@ These tests guard all of the above.
 
 To do so, `step_back` asks the CPU for the start of the latest block run
 entered with the current PC and SP (`reverse blockstart <pc> <sp>`), then
-jumps to that time.  The CPU only maintains this history when the global
-`debug_block_instructions` setting is enabled; the test suite enables it in
-`it::boot_cart`.
+jumps to that time.  The history contains both suspended and completed runs
+and is saved with the CPU state.
 
 ## Layout
 
@@ -51,10 +50,8 @@ results: 9 tests total.
 `step_back` queries the CPU's saved block history with
 `reverse blockstart <pc> <sp>`.  The history contains both suspended and
 completed runs, is part of the savestate, and therefore also works after
-loading a snapshot.  It is only maintained while the global
-`debug_block_instructions` setting is enabled.  When the setting is off, or
-when no matching run is in the history, `step_back` falls back to a plain
-single-instruction step.
+loading a snapshot.  When no matching run is in the history, `step_back`
+falls back to a plain single-instruction step.
 
 ### Choosing the openMSX binary
 

@@ -40,6 +40,9 @@
 # instruction just after it, and assert we land on the block PC with the
 # registers restored to their ORIGINAL (pre-block) values.
 #
+# The CPU only tracks block-repeat runs when the global
+# `debug_block_instructions` setting is enabled. it::boot_cart enables it.
+#
 # Requires an openMSX binary (see run_integration.tcl). This file is
 # standalone so it can be run directly:
 #   tclsh test/integration/step_back_integration_test.tcl
@@ -59,6 +62,7 @@ proc it::rom {basename} { return [file join $::it::romdir $basename] }
 # page 1 (0x4000 == 0x41). Returns when the cartridge is live.
 proc it::boot_cart {rom} {
 	omsx::spawn -machine C-BIOS_MSX1 -cart $rom
+	omsx::ok "set debug_block_instructions true"
 	omsx::sleepms 600
 	omsx::power_on
 	omsx::ensure_reverse
@@ -228,8 +232,8 @@ tcltest::test $ctx "shared ldir subroutine varying BC rewinds current execution"
 # 6) Nested blocks: outer LDIR interrupted by video IRQs whose H.TIMI hook
 #    runs its own INIR (B=4). Breaking after the outer block and stepping
 #    back must land on the outer LDIR with BC=$2000 restored -- the inner
-#    INIR markers (different PC) must not disturb it, and the outer resume
-#    must not log a spurious outer entry (which would land mid-block).
+#    INIR runs (different PC) must not disturb it, and the outer resume must
+#    not add a spurious outer entry (which would land mid-block).
 tcltest::test $ctx "nested inir inside outer ldir rewinds outer to first iteration" {
 	it::boot_cart [it::rom ldir_nested_inir.rom]
 	set bp [omsx::set_bp "0x4028"]              ;# JR FOREVER (after outer LDIR)
@@ -309,20 +313,25 @@ tcltest::test $ctx "many random LDIR sizes rewind from last LDIR to first" {
 	omsx::exit
 }
 
-# 9) 'reverse blockstart' is used by step_back as a fallback. It must fail
-#    cleanly when reverse is disabled, instead of returning a stale or
-#    meaningless time.
-tcltest::test $ctx "blockstart reports reverse disabled" {
-	omsx::spawn -machine C-BIOS_MSX1
-	omsx::sleepms 600
-	omsx::power_on
-	omsx::ensure_reverse
+# 9) The CPU's block history is part of the savestate, so 'reverse
+#    blockstart' works without reverse recording. Disabling
+#    debug_block_instructions clears the history and makes it fail.
+tcltest::test $ctx "blockstart uses saved history without reverse" {
+	it::boot_cart [it::rom ldir_irq.rom]
+	set bp [omsx::set_bp "0x401d"]
+	it::run_to_bp
+	omsx::rm_bp $bp
+	set sp [it::reg sp]
 	omsx::ok "reverse stop"
-	set r [omsx::cmd "reverse blockstart 0x401B"]
-	set msg [lindex $r 1]
-	tcltest::eq $ctx [lindex $r 0] nok "blockstart fails without reverse"
-	tcltest::is $ctx {[string match "*Reverse was not enabled*" $msg]} \
-		"error message says reverse is disabled"
+	set t [omsx::ok "reverse blockstart 0x401B $sp"]
+	tcltest::is $ctx {[string is double -strict $t]} \
+		"blockstart works without reverse"
+	omsx::ok "set debug_block_instructions false"
+	set r [omsx::cmd "reverse blockstart 0x401B $sp"]
+	tcltest::eq $ctx [lindex $r 0] nok \
+		"blockstart fails when tracking is disabled"
+	tcltest::is $ctx {[string match "*tracking is disabled*" [lindex $r 1]]} \
+		"error message mentions disabled tracking"
 	omsx::exit
 }
 
