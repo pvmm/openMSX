@@ -216,15 +216,39 @@ tcltest::test $ctx "shared ldir subroutine varying BC rewinds current execution"
 	set bp [omsx::set_bp "0x4029"]              ;# COPY's RET (BC=0 at each return)
 	it::run_to_bp                               ;# 1st hit: end of BC=5 execution
 	tcltest::eq_hex $ctx [it::reg pc] 0x4029 "first return reached"
-	it::cont_to_bp                              ;# 2nd hit: end of BC=3 execution
-	tcltest::eq_hex $ctx [it::reg pc] 0x4029 "second return reached"
-	it::cont_to_bp                              ;# 3rd hit: end of BC=4 execution
-	tcltest::eq_hex $ctx [it::reg pc] 0x4029 "third return reached"
+	tcltest::eq_hex $ctx [it::reg de] 0xc005 "DE restored to first-execution dest"
+	tcltest::eq_hex $ctx [it::reg bc] 0x0 "check end of execution: BC runs from 5 to 0"
 	omsx::step_back
-	tcltest::eq_hex $ctx [it::reg pc] 0x4027 "lands on LDIR"
-	tcltest::eq_hex $ctx [it::reg bc] 0x4 "BC restored to current execution (4)"
-	tcltest::eq_hex $ctx [it::reg hl] 0x4008 "HL restored to third-execution source"
-	tcltest::eq_hex $ctx [it::reg de] 0xc008 "DE restored to third-execution dest"
+	omsx::step_back
+	tcltest::eq_hex $ctx [it::reg pc] 0x4016 "first call reached"
+	it::run_to_bp                               ;# go forward again (1st hit)
+	tcltest::eq_hex $ctx [it::reg pc] 0x4029 "first return reached again"
+	omsx::step_in
+	omsx::step_in
+	tcltest::eq_hex $ctx [it::reg bc] 0x3 "new ldir (BC=3)"
+	tcltest::eq_hex $ctx [it::reg pc] 0x401c "check if second call started"
+	it::run_to_bp                               ;# go forward (2nd hit)
+	tcltest::eq_hex $ctx [it::reg pc] 0x4029 "second return reached"
+	tcltest::eq_hex $ctx [it::reg de] 0xc008 "DE restored to second-execution dest"
+	tcltest::eq_hex $ctx [it::reg bc] 0x0 "check end of execution: BC runs from 3 to 0"
+	omsx::step_back
+	omsx::step_back
+	tcltest::eq_hex $ctx [it::reg pc] 0x401c "second call reached"
+	it::run_to_bp                               ;# go forward again (2nd hit)
+	tcltest::eq_hex $ctx [it::reg pc] 0x4029 "second return reached again"
+	omsx::step_in
+	omsx::step_in
+	tcltest::eq_hex $ctx [it::reg bc] 0x4 "new ldir (BC=4)"
+	tcltest::eq_hex $ctx [it::reg pc] 0x4022 "check if third call started"
+	it::run_to_bp                               ;# go forward (2nd hit)
+	tcltest::eq_hex $ctx [it::reg pc] 0x4029 "third return reached"
+	tcltest::eq_hex $ctx [it::reg de] 0xc00c "DE restored to third-execution dest"
+	tcltest::eq_hex $ctx [it::reg bc] 0x0 "check end of execution: BC runs from 4 to 0"
+	omsx::step_back
+	omsx::step_back
+	tcltest::eq_hex $ctx [it::reg pc] 0x4022 "third call reached"
+	it::run_to_bp                               ;# go forward again (3rd hit)
+	tcltest::eq_hex $ctx [it::reg pc] 0x4029 "third return reached again"
 	omsx::rm_bp $bp
 	omsx::exit
 }

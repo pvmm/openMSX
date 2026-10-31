@@ -251,6 +251,14 @@ proc omsx::step_back {} {
 	}
 }
 
+# omsx::step_in  -- invoke the console step_in (from _disasm.tcl)
+proc omsx::step_in {} {
+	set r [omsx::cmd "step_in"]
+	if {[lindex $r 0] ne "ok"} {
+		error "step_in failed: [lindex $r 1]"
+	}
+}
+
 # omsx::exit  -- shut down the emulator
 proc omsx::exit {} {
 	if {$::omsx::pipe eq ""} { return }
