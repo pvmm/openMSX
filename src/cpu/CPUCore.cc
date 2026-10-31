@@ -161,9 +161,6 @@
 #include "CPUCore.hh"
 
 #include "Dasm.hh"
-#include "ReverseManager.hh"
-#include "StateChange.hh"
-#include "StateChangeDistributor.hh"
 #include "serialize_stl.hh"
 #include "MSXCPUInterface.hh"
 #include "R800.hh"
@@ -181,6 +178,7 @@
 #include "unreachable.hh"
 #include "xrange.hh"
 
+#include <algorithm>
 #include <array>
 #include <bit>
 #include <cassert>
@@ -385,7 +383,7 @@ template<typename T> void CPUCore<T>::doReset(EmuTime time)
 	// single openMSX version.
 	T::setTime(time);
 
-	blockStack.clear(); // no suspended block-repeat execution survives reset
+	blockStack.clear(); // no block-repeat history survives reset
 
 	assert(NMIStatus == 0); // other devices must reset their NMI source
 	assert(IRQStatus == 0); // other devices must reset their IRQ source
@@ -4019,53 +4017,72 @@ template<typename T> II CPUCore<T>::out_byte_a() {
 // block CP
 // Bookkeeping for block-repeat executions, see CPUCore.hh.
 // Called once per repeat-opcode dispatch (never for the single-step
-// variants). If the (PC, SP) pair is already on top of the stack, this is
-// another iteration or an IRQ/NMI resume, so there is nothing to record.
-// Otherwise it is a fresh run: push it and, when reverse is collecting
-// (but not replaying), log one BlockEntry marker. During replay the marker
-// is already in the log; emitting it again would truncate the future.
+// variants). If the innermost active context already has this (PC, SP)
+// pair, this is another iteration or an IRQ/NMI resume, so there is
+// nothing to record. Otherwise it is a fresh run: push it as active.
 template<typename T> void CPUCore<T>::noteBlockRepeatEntry()
 {
+	if (!blockInstructionsEnabled) return;
+
 	// At dispatch PC points at the second opcode byte (the ED prefix was
 	// already consumed); convert it to the instruction-start address used
 	// by 'reg PC' and the disassembler.
 	uint16_t pc = getPC() - 1;
 	uint16_t sp = getSP();
-	if (!blockStack.empty() && (blockStack.back().pc == pc) && (blockStack.back().sp == sp)) {
+	auto activeIt = std::find_if(blockStack.rbegin(), blockStack.rend(),
+		[](const BlockContext& c) { return c.active; });
+	if ((activeIt != blockStack.rend()) &&
+	    (activeIt->pc == pc) && (activeIt->sp == sp)) {
 		return;
 	}
-	if (blockStack.size() >= 8) {
-		blockStack.erase(begin(blockStack)); // drop oldest, keep recent
+	if (blockStack.size() >= MAX_BLOCK_CONTEXTS) {
+		// Drop the oldest completed entry first. Keep active contexts so a
+		// long outer block is not lost because of many nested inner blocks.
+		auto inactiveIt = std::find_if(blockStack.begin(), blockStack.end(),
+			[](const BlockContext& c) { return !c.active; });
+		blockStack.erase((inactiveIt != blockStack.end()) ? inactiveIt
+		                                                 : blockStack.begin());
 	}
-	blockStack.push_back({pc, sp, T::getTime()});
-	const auto& reverse = motherboard.getReverseManager();
-	if (reverse.isCollecting() && !reverse.isReplaying()) {
-		motherboard.getStateChangeDistributor().distributeNew<BlockEntry>(
-			T::getTime(), pc, getBC());
-	}
+	blockStack.push_back({pc, sp, T::getTime(), true});
 }
 
 // Called when a repeat opcode finishes its block (counter reached zero, or
-// a CPIR/CPDR early match). Pops the top context when its PC matches, so a
-// later execution at the same PC is seen as a fresh entry again.
+// a CPIR/CPDR early match). Marks the innermost active context inactive,
+// but keeps it in the history so step_back can still find its start.
 template<typename T> void CPUCore<T>::noteBlockRepeatEnd()
 {
+	if (!blockInstructionsEnabled) return;
+
 	// Same first-byte convention as noteBlockRepeatEntry().
-	if (!blockStack.empty() && blockStack.back().pc == uint16_t(getPC() - 1)) {
-		blockStack.pop_back();
+	uint16_t pc = getPC() - 1;
+	uint16_t sp = getSP();
+	auto activeIt = std::find_if(blockStack.rbegin(), blockStack.rend(),
+		[](const BlockContext& c) { return c.active; });
+	if ((activeIt != blockStack.rend()) &&
+	    (activeIt->pc == pc) && (activeIt->sp == sp)) {
+		activeIt->active = false;
 	}
 }
 
 template<typename T> std::optional<EmuTime> CPUCore<T>::getBlockStart(
 	uint16_t pc, uint16_t sp) const
 {
-	// Innermost (most recently entered) context first.
+	if (!blockInstructionsEnabled) return std::nullopt;
+
+	// Newest (most recently entered) run first.
 	for (auto it = blockStack.rbegin(); it != blockStack.rend(); ++it) {
 		if ((it->pc == pc) && (it->sp == sp)) {
 			return it->time;
 		}
 	}
 	return std::nullopt;
+}
+
+template<typename T> void CPUCore<T>::setBlockInstructionsEnabled(bool enabled)
+{
+	if (blockInstructionsEnabled == enabled) return;
+	blockInstructionsEnabled = enabled;
+	blockStack.clear();
 }
 
 template<typename T> inline II CPUCore<T>::BLOCK_CP(int increase, bool repeat) {
@@ -4410,7 +4427,7 @@ template<typename T> template<Reg16 REG> II CPUCore<T>::muluw_hl_SS() {
 //  3 -> timing of the emulation changed (no changes in serialization)
 //  4 -> timing of the emulation changed again (see doc/internal/r800-call.txt)
 //  5 -> added serialization of nmiEdge
-//  6 -> added serialization of blockStack (PC, SP and start time)
+//  6 -> added serialization of blockStack (PC, SP, start time and active flag)
 template<typename T> template<typename Archive>
 void CPUCore<T>::serialize(Archive& ar, unsigned version)
 {
@@ -4440,6 +4457,9 @@ void CPUCore<T>::serialize(Archive& ar, unsigned version)
 		blockStack.clear();
 	} else {
 		ar.serialize("blockStack", blockStack);
+		if (!blockInstructionsEnabled) {
+			blockStack.clear();
+		}
 	}
 
 	// Don't serialize:

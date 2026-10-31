@@ -13,6 +13,10 @@ GlobalSettings::GlobalSettings(GlobalCommandController& commandController_)
 	        "turn power on/off", false, Setting::Save::NO)
 	, autoSaveSetting(commandController, "save_settings_on_exit",
 	        "automatically save settings when openMSX exits", true)
+	, debugBlockInstructionsSetting(commandController,
+	        "debug_block_instructions",
+	        "track block-repeat instruction starts for step_back (debugging only)",
+	        false)
 	, umrCallBackSetting(commandController, "umr_callback",
 		"Tcl proc to call when an UMR is detected", {})
 	, invalidPsgDirectionsSetting(commandController,

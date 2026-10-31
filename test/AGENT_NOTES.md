@@ -118,16 +118,15 @@ keys/values of a `string map` pair list for XML escaping — wrap them in braces
     fires on the *first* execution of that instruction, which is the clean way
     to observe the just-completed block.
 
-## 9. Block-entry markers (`reverse blockstart`) and `step_back` semantics
+## 9. Saved block history (`reverse blockstart`) and `step_back` semantics
 
-Current builds log one `BlockEntry` reverse marker per block-repeat
-execution (CPU core, first-byte PC, start time). Query it with
-`reverse blockstart <pc> [<time>]` (default time: now) — it returns the
-start time of the latest recorded execution for that PC at or before the
-bound, or errors (`nok`) when reverse is disabled or nothing is recorded
-(old replay, block started before recording began). `step_back` first asks
-the CPU for a suspended block context (`reverse blockcontext <pc> <sp>`);
-for a completed block it falls back to the marker, and otherwise uses the
+The CPU keeps a small saved history of block-repeat executions (PC, SP,
+start time and an active flag).  It contains suspended and completed runs,
+is serialized in the CPU savestate, and is queried with
+`reverse blockstart <pc> <sp>`.  The command returns the start time of the
+latest matching run, or errors (`nok`) when the global
+`debug_block_instructions` setting is disabled or no matching run is in the
+history.  `step_back` uses this command and otherwise falls back to the
 generic reverse search.
 
 ## 10. Block-repeat `step_back` semantics that the tests pin down

@@ -123,12 +123,17 @@ public:
 	[[nodiscard]] BooleanSetting& getFreqLockedSetting() { return freqLocked; }
 	[[nodiscard]] IntegerSetting& getFreqValueSetting()  { return freqValue; }
 
-	/** Return the start time of the most recent suspended block-repeat
-	  * execution entered with the given PC and SP. Searches the block
-	  * contexts from innermost to outermost. Returns no value when no
-	  * such context exists (e.g. the block already finished).
+	/** Return the start time of the most recent block-repeat execution
+	  * entered with the given PC and SP. Searches the block history from
+	  * newest to oldest. Returns no value when tracking is disabled or no
+	  * matching run exists.
 	  */
 	[[nodiscard]] std::optional<EmuTime> getBlockStart(uint16_t pc, uint16_t sp) const;
+
+	/** Enable or disable block-repeat bookkeeping. Disabling also clears
+	  * the saved block history.
+	  */
+	void setBlockInstructionsEnabled(bool enabled);
 
 	template<typename Archive>
 	void serialize(Archive& ar, unsigned version);
@@ -173,26 +178,30 @@ private:
 	bool nmiEdge = false;
 
 	/**
-	 * Suspended block-repeat executions, innermost last. Pushed on a repeat
-	 * opcode dispatch when the (PC, SP) pair differs from the top (new run,
-	 * loop re-entry, nested block, or same-PC reentrant run); popped when
-	 * the run finishes. An IRQ/NMI resume re-dispatches the same pair, so it
-	 * does not add a context. Cleared on reset; serialized with the CPU
-	 * state.
+	 * Recent block-repeat executions, oldest first. A new run is pushed
+	 * when the opcode is dispatched and no active context with the same
+	 * (PC, SP) pair exists. When the run finishes its context is marked
+	 * inactive instead of removed, so step_back can still find the start
+	 * of a completed block. An IRQ/NMI resume re-dispatches the same active
+	 * pair, so it does not add an entry. Cleared on reset; serialized with
+	 * the CPU state.
 	 *
 	 * PC is the instruction-start address (as in 'reg PC'), not the second
 	 * ED-prefix byte seen at dispatch. SP distinguishes same-PC nested runs.
-	 * Time is the run's start time (used by 'reverse blockcontext'/step_back).
+	 * Time is the run's start time (used by 'reverse blockstart'/step_back).
 	 */
 	struct BlockContext {
 		uint16_t pc = 0;
 		uint16_t sp = 0;
 		EmuTime time = EmuTime::zero();
+		bool active = false;
 		template<typename Archive> void serialize(Archive& ar, unsigned /*version*/) {
-			ar.serialize("pc", pc, "sp", sp, "time", time);
+			ar.serialize("pc", pc, "sp", sp, "time", time, "active", active);
 		}
 	};
+	static constexpr unsigned MAX_BLOCK_CONTEXTS = 8;
 	std::vector<BlockContext> blockStack;
+	bool blockInstructionsEnabled = false;
 
 	std::atomic<bool> exitLoop = false;
 
@@ -481,7 +490,7 @@ private:
 	inline II otir();
 
 	// Bookkeeping for block-repeat executions (LDIR/LDDR/CPIR/CPDR/
-	// INIR/INDR/OTIR/OTDR), used to log BlockEntry reverse markers.
+	// INIR/INDR/OTIR/OTDR), used by reverse blockstart/step_back.
 	// Called once per repeat-opcode dispatch, not per single-step variant.
 	inline void noteBlockRepeatEntry();
 	inline void noteBlockRepeatEnd();

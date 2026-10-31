@@ -6,8 +6,10 @@
 #include "Z80.hh"
 
 #include "Debugger.hh"
+#include "GlobalSettings.hh"
 #include "IntegerSetting.hh"
 #include "MSXMotherBoard.hh"
+#include "Reactor.hh"
 #include "Scheduler.hh"
 #include "TclObject.hh"
 #include "serialize.hh"
@@ -53,11 +55,19 @@ MSXCPU::MSXCPU(MSXMotherBoard& motherboard_)
 		r800->freqLocked.attach(*this);
 		r800->freqValue.attach(*this);
 	}
+	auto& blockInstructions =
+		motherboard.getReactor().getGlobalSettings().getDebugBlockInstructionsSetting();
+	blockInstructions.attach(*this);
+	bool blockInstructionsEnabled = blockInstructions.getBoolean();
+	z80->setBlockInstructionsEnabled(blockInstructionsEnabled);
+	if (r800) r800->setBlockInstructionsEnabled(blockInstructionsEnabled);
 	invalidateMemCacheSlot();
 }
 
 MSXCPU::~MSXCPU()
 {
+	motherboard.getReactor().getGlobalSettings()
+		.getDebugBlockInstructionsSetting().detach(*this);
 	z80->freqLocked.detach(*this);
 	z80->freqValue.detach(*this);
 	if (r800) {
@@ -359,8 +369,16 @@ std::optional<EmuTime> MSXCPU::getBlockStart(uint16_t pc, uint16_t sp) const
 
 void MSXCPU::update(const Setting& setting) noexcept
 {
-	          z80 ->update(setting);
-	if (r800) r800->update(setting);
+	auto& blockInstructions =
+		motherboard.getReactor().getGlobalSettings().getDebugBlockInstructionsSetting();
+	if (&setting == &blockInstructions) {
+		bool enabled = blockInstructions.getBoolean();
+		z80->setBlockInstructionsEnabled(enabled);
+		if (r800) r800->setBlockInstructionsEnabled(enabled);
+	} else {
+		          z80 ->update(setting);
+		if (r800) r800->update(setting);
+	}
 	exitCPULoopSync();
 }
 

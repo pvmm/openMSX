@@ -15,10 +15,11 @@ the current block execution.  This must also hold when:
 
 These tests guard all of the above.
 
-To do so, `step_back` asks the CPU for the start of the current block run
-(`reverse blockcontext <pc> <sp>`).  For a block that has already finished it
-falls back to the recorded `BlockEntry` marker in the reverse log
-(`reverse blockstart`), then jumps to that time.
+To do so, `step_back` asks the CPU for the start of the latest block run
+entered with the current PC and SP (`reverse blockstart <pc> <sp>`), then
+jumps to that time.  The CPU only maintains this history when the global
+`debug_block_instructions` setting is enabled; the test suite enables it in
+`it::boot_cart`.
 
 ## Layout
 
@@ -45,13 +46,15 @@ The launcher runs each suite as a separate `tclsh` subprocess (each test file
 ends with its own summary + non-zero exit on failure) and aggregates the
 results: 9 tests total.
 
-## Block context vs marker fallback
+## Saved block history
 
-`step_back` first queries the CPU's suspended block contexts
-(`reverse blockcontext <pc> <sp>`), which also works after loading a savestate.
-For a block that has already finished it falls back to the `BlockEntry` reverse
-marker (`reverse blockstart <pc> [time]`), and to a plain single-instruction
-step when it cannot find a run start.
+`step_back` queries the CPU's saved block history with
+`reverse blockstart <pc> <sp>`.  The history contains both suspended and
+completed runs, is part of the savestate, and therefore also works after
+loading a snapshot.  It is only maintained while the global
+`debug_block_instructions` setting is enabled.  When the setting is off, or
+when no matching run is in the history, `step_back` falls back to a plain
+single-instruction step.
 
 ### Choosing the openMSX binary
 

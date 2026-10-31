@@ -304,10 +304,10 @@ proc step_back {} {
 	#
 	# A block-repeat instruction (LDIR, LDDR, CPIR, ...) must be stepped
 	# over as a whole: jump to the start of its current run, not to the
-	# previous iteration. The CPU keeps the start time of a suspended run
-	# in its block context; for a run that has already finished, the
-	# reverse event log has the start time. If either is available, jump
-	# there directly.
+	# previous iteration. When block-instruction tracking is enabled, the
+	# CPU keeps a small saved history of run starts (including completed
+	# runs); use it if available, otherwise fall through to the regular
+	# single-instruction step.
 	#
 	# Otherwise use the reverse search below: step back far enough to be
 	# certainly before the previous instruction, then step forward until we
@@ -341,24 +341,19 @@ proc step_back {} {
 		if {$cand2 >= 0} { set marker_candidate $cand2 } else { set marker_candidate "" }
 	}
 	if {$marker_candidate ne "" && [is_block_instr $marker_candidate]} {
-		# Prefer the CPU's suspended block contexts: they include the SP
-		# (so a nested run at the same PC is distinguished) and are part of
-		# the savestate (so they survive a reverse goto).
-		set marker_time -1
-		if {[catch {reverse blockcontext $marker_candidate [reg SP]} t]} {
-			# Fall back to the event log; this also covers a block that
-			# already completed and was popped from the contexts.
-			catch {set t [reverse blockstart $marker_candidate $start]}
-		}
-		if {[string is double -strict $t] && ($t >= 0) && ($t < $start)} {
-			set marker_time $t
-		}
-		if {$marker_time >= 0} {
-			reverse goto $marker_time
+		# The CPU's block history includes the SP (so a nested run at the
+		# same PC is distinguished) and is part of the savestate (so it
+		# survives a reverse goto). A failed query means tracking is off or
+		# the run is not in the history.
+		if {[catch {reverse blockstart $marker_candidate [reg SP]} t]} {
+			# Fall through to the regular single-instruction step.
+		} elseif {[string is double -strict $t] && ($t >= 0) && ($t < $start)} {
+			reverse goto $t
 			return
 		}
-		# If the marker time equals $start we are exactly at the run start:
-		# don't use it, fall through to the regular single-instruction step.
+		# If the block-start time equals $start we are exactly at the run
+		# start: don't use it, fall through to the regular single-instruction
+		# step.
 	}
 
 	# Step back far enough to be certainly before the previous instruction.
