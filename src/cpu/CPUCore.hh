@@ -128,8 +128,7 @@ public:
 	  * newest to oldest. When activeOnly is true, completed runs are
 	  * ignored. Returns no value when no matching run exists.
 	  */
-	[[nodiscard]] std::optional<EmuTime> getBlockStart(
-		uint16_t pc, uint16_t sp, bool activeOnly = false) const;
+	[[nodiscard]] std::optional<EmuTime> getBlockStart(uint16_t pc, uint16_t sp) const;
 
 	template<typename Archive>
 	void serialize(Archive& ar, unsigned version);

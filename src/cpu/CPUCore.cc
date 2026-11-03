@@ -4060,12 +4060,10 @@ template<typename T> void CPUCore<T>::noteBlockRepeatEnd()
 	}
 }
 
-template<typename T> std::optional<EmuTime> CPUCore<T>::getBlockStart(
-	uint16_t pc, uint16_t sp, bool activeOnly) const
+template<typename T> std::optional<EmuTime> CPUCore<T>::getBlockStart(uint16_t pc, uint16_t sp) const
 {
 	// Newest (most recently entered) run first.
 	for (auto it = blockStack.rbegin(); it != blockStack.rend(); ++it) {
-		if (activeOnly && !it->active) continue;
 		if ((it->pc == pc) && (it->sp == sp)) {
 			return it->time;
 		}
@@ -4439,11 +4437,7 @@ void CPUCore<T>::serialize(Archive& ar, unsigned version)
 		ar.serialize("nmiEdge", nmiEdge);
 	}
 
-	if (ar.versionBelow(version, 6)) {
-		// Older versions had no block-repeat context: forget any in-flight
-		// block (its resume will look like a fresh entry).
-		blockStack.clear();
-	} else {
+	if (ar.versionAtLeast(version, 6)) {
 		ar.serialize("blockStack", blockStack);
 	}
 
