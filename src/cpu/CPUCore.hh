@@ -186,16 +186,17 @@ private:
 	 * Time is the run's start time (used by 'reverse blockstart'/step_back).
 	 */
 	struct BlockContext {
-		uint16_t pc = 0;
-		uint16_t sp = 0;
+		int32_t pc = -1;
+		int32_t sp = 0;
 		EmuTime time = EmuTime::zero();
 		bool active = false;
 		template<typename Archive> void serialize(Archive& ar, unsigned /*version*/) {
-			ar.serialize("pc", pc, "sp", sp, "time", time, "active", active);
+			ar.serialize("pc", pc, "sp", sp, "time", time);
 		}
 	};
 	static constexpr unsigned MAX_BLOCK_CONTEXTS = 8;
-	std::vector<BlockContext> blockStack;
+	std::array<BlockContext, MAX_BLOCK_CONTEXTS + 1> blockStack;
+	//std::vector<BlockContext> blockStack;
 
 	std::atomic<bool> exitLoop = false;
 

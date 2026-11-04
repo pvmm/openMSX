@@ -383,7 +383,7 @@ template<typename T> void CPUCore<T>::doReset(EmuTime time)
 	// single openMSX version.
 	T::setTime(time);
 
-	blockStack.clear(); // no block-repeat history survives reset
+	blockStack.fill(BlockContext{-1, 0, EmuTime::zero()});
 
 	assert(NMIStatus == 0); // other devices must reset their NMI source
 	assert(IRQStatus == 0); // other devices must reset their IRQ source
@@ -4022,26 +4022,18 @@ template<typename T> II CPUCore<T>::out_byte_a() {
 // nothing to record. Otherwise it is a fresh run: push it as active.
 template<typename T> void CPUCore<T>::noteBlockRepeatEntry()
 {
+	if (blockStack[0].pc == getPC() - 1 && blockStack[0].sp == getSP()) {
+		// continuation of block instruction, don't do anything
+		return;
+	}
+
+	// start of a block instruction
+	std::shift_right(blockStack.begin(), blockStack.end() - 1, 1);
 	// At dispatch PC points at the second opcode byte (the ED prefix was
 	// already consumed); convert it to the instruction-start address used
 	// by 'reg PC' and the disassembler.
-	uint16_t pc = getPC() - 1;
-	uint16_t sp = getSP();
-	auto activeIt = std::find_if(blockStack.rbegin(), blockStack.rend(),
-		[](const BlockContext& c) { return c.active; });
-	if ((activeIt != blockStack.rend()) &&
-	    (activeIt->pc == pc) && (activeIt->sp == sp)) {
-		return;
-	}
-	if (blockStack.size() >= MAX_BLOCK_CONTEXTS) {
-		// Drop the oldest completed entry first. Keep active contexts so a
-		// long outer block is not lost because of many nested inner blocks.
-		auto inactiveIt = std::find_if(blockStack.begin(), blockStack.end(),
-			[](const BlockContext& c) { return !c.active; });
-		blockStack.erase((inactiveIt != blockStack.end()) ? inactiveIt
-		                                                 : blockStack.begin());
-	}
-	blockStack.push_back({pc, sp, T::getTime(), true});
+	blockStack[0].pc = getPC() - 1;
+	blockStack[0].sp = getSP();
 }
 
 // Called when a repeat opcode finishes its block (counter reached zero, or
@@ -4049,15 +4041,7 @@ template<typename T> void CPUCore<T>::noteBlockRepeatEntry()
 // but keeps it in the history so step_back can still find its start.
 template<typename T> void CPUCore<T>::noteBlockRepeatEnd()
 {
-	// Same first-byte convention as noteBlockRepeatEntry().
-	uint16_t pc = getPC() - 1;
-	uint16_t sp = getSP();
-	auto activeIt = std::find_if(blockStack.rbegin(), blockStack.rend(),
-		[](const BlockContext& c) { return c.active; });
-	if ((activeIt != blockStack.rend()) &&
-	    (activeIt->pc == pc) && (activeIt->sp == sp)) {
-		activeIt->active = false;
-	}
+	std::shift_left(blockStack.begin(), blockStack.end(), 1);
 }
 
 template<typename T> std::optional<EmuTime> CPUCore<T>::getBlockStart(uint16_t pc, uint16_t sp) const
