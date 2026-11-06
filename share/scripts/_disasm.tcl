@@ -388,6 +388,57 @@ proc step_back {} {
 
 
 #
+# step_back_over (rev_over)
+#
+set_help_text step_back_over \
+{Step back over a subroutine call. If the previous instruction was a RET that
+returned from a CALL/RST, this steps back over the entire call to the call
+instruction. Otherwise it behaves like step_back.}
+proc step_back_over {} {
+	set return_pc [reg PC]
+
+	# Step back once. If that lands on a RET, we likely returned from a call
+	# and should reverse over the entire call.
+	step_back
+	set pc [reg PC]
+	set instr [lindex [debug disasm $pc] 0]
+	if {![string match -nocase "ret*" $instr]} {
+		# Not a return-from-call scenario; step_back already did the right thing.
+		return
+	}
+
+	# Find the CALL/RST instruction that returned to return_pc.
+	set call_addr ""
+	foreach try_len {3 1 2 4} {
+		set try_addr [expr {($return_pc - $try_len) & 0xFFFF}]
+		set dinfo [debug disasm $try_addr]
+		set dinstr [lindex $dinfo 0]
+		set dlen [expr {[llength $dinfo] - 1}]
+		if {$dlen == $try_len && ([string match -nocase "call*" $dinstr] || [string match -nocase "rst*" $dinstr])} {
+			set call_addr $try_addr
+			break
+		}
+	}
+	if {$call_addr eq ""} {
+		# Couldn't identify the call; leave position at the RET.
+		return
+	}
+
+	# Keep stepping back until we reach the call instruction (or give up).
+	# step_back walks instruction boundaries in reverse execution order, so it
+	# naturally traverses back through the subroutine to the CALL.
+	set limit 10000
+	for {set i 0} {$i < $limit} {incr i} {
+		if {[reg PC] == $call_addr} return
+		set before [dict get [reverse status] "current"]
+		if {$before <= 0} break
+		step_back
+		set after [dict get [reverse status] "current"]
+		if {$after >= $before} break
+	}
+}
+
+#
 # skip one instruction
 #
 set_help_text skip_instruction \
@@ -422,6 +473,7 @@ namespace export toggle_breaked
 namespace export step_over
 namespace export step_back
 namespace export step_back_one
+namespace export step_back_over
 namespace export step_out
 namespace export step_in
 namespace export step
