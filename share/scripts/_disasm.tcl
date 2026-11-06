@@ -428,43 +428,51 @@ proc step_back_over {} {
 	set ret_time [dict get [reverse status] "current"]
 	if {[reg PC] == $call_addr} return
 
-	# Use exponential reverse goback to jump back quickly, then scan forward
-	# to pinpoint the call instruction boundary.
+	# Exponential backoff from ret_time: jump back, then scan forward to
+	# ret_time. If call_addr is seen, return (we started before it executed).
+	# If we reach ret_time without seeing it, we undershot -> increase delta.
 	set delta 0.0005
-	set max_attempts 40
-	set max_scan 2000
+	set max_attempts 50
+	set cpu [get_active_cpu]
+	set cycle_period [expr {1.0 / [machine_info ${cpu}_freq]}]
+	# Minimum forward nudge: ensure progress (at least a few cycles).
+	set min_nudge [expr {$cycle_period * 4.0}]
+	if {$min_nudge < 1e-7} { set min_nudge 1e-7 }
+
 	for {set attempt 0} {$attempt < $max_attempts} {incr attempt} {
 		set target [expr {$ret_time - $delta}]
 		if {$target < 0} { set target 0 }
 		reverse goto -novideo $target
-		# Scan forward to find call_addr without going past return_time.
-		for {set s 0} {$s < $max_scan} {incr s} {
-			if {[reg PC] == $call_addr} return
+
+		# Scan forward until ret_time; bounded by time, not step count.
+		while {1} {
+			set cur_pc [reg PC]
+			if {$cur_pc == $call_addr} return
 			set now [dict get [reverse status] "current"]
-			if {$now >= $return_time} break
-			# Forward step: prefer cheap reverse goto nudge, fall back to debug step.
-			if {[catch {
-				# Small forward jump; reverse goto stops at instruction boundaries.
-				set cycle_period [expr {1.0 / [machine_info [get_active_cpu]_freq]}]
-				reverse goto -novideo [expr {$now + $cycle_period}]
-			}]} {
-				catch {debug step}
+			if {$now >= $ret_time} break
+			# Advance to next instruction boundary.
+			set nudge $min_nudge
+			set advanced 0
+			for {set retry 0} {$retry < 8} {incr retry} {
+				if {[catch {reverse goto -novideo [expr {$now + $nudge}]}]} break
+				set after [dict get [reverse status] "current"]
+				if {$after > $now} { set advanced 1; break }
+				set nudge [expr {$nudge * 4.0}]
 			}
-			set after [dict get [reverse status] "current"]
-			if {$after <= $now} {
-				# No progress; try debug step
+			if {!$advanced} {
+				# Fallback: try debug step (forward)
 				if {[catch {debug step}]} break
-				set after2 [dict get [reverse status] "current"]
-				if {$after2 <= $now} break
+				set after [dict get [reverse status] "current"]
+				if {$after <= $now} break
 			}
 		}
 		if {$target <= 0} break
 		set delta [expr {$delta * 2.0}]
 	}
 
-	# Fallback: precise instruction-by-instruction walk back.
+	# Fallback: precise instruction-by-instruction walk back (limited).
 	reverse goto -novideo $ret_time
-	set limit 100000
+	set limit 5000
 	for {set i 0} {$i < $limit} {incr i} {
 		if {[reg PC] == $call_addr} return
 		set before [dict get [reverse status] "current"]
@@ -473,6 +481,8 @@ proc step_back_over {} {
 		set after [dict get [reverse status] "current"]
 		if {$after >= $before} break
 	}
+	# Last resort: leave at RET
+	reverse goto -novideo $ret_time
 }
 
 #
