@@ -396,6 +396,7 @@ returned from a CALL/RST, this steps back over the entire call to the call
 instruction. Otherwise it behaves like step_back.}
 proc step_back_over {} {
 	set return_pc [reg PC]
+	set return_time [dict get [reverse status] "current"]
 
 	# Step back once. If that lands on a RET, we likely returned from a call
 	# and should reverse over the entire call.
@@ -424,10 +425,46 @@ proc step_back_over {} {
 		return
 	}
 
-	# Keep stepping back until we reach the call instruction (or give up).
-	# step_back walks instruction boundaries in reverse execution order, so it
-	# naturally traverses back through the subroutine to the CALL.
-	set limit 10000
+	set ret_time [dict get [reverse status] "current"]
+	if {[reg PC] == $call_addr} return
+
+	# Use exponential reverse goback to jump back quickly, then scan forward
+	# to pinpoint the call instruction boundary.
+	set delta 0.0005
+	set max_attempts 40
+	set max_scan 2000
+	for {set attempt 0} {$attempt < $max_attempts} {incr attempt} {
+		set target [expr {$ret_time - $delta}]
+		if {$target < 0} { set target 0 }
+		reverse goto -novideo $target
+		# Scan forward to find call_addr without going past return_time.
+		for {set s 0} {$s < $max_scan} {incr s} {
+			if {[reg PC] == $call_addr} return
+			set now [dict get [reverse status] "current"]
+			if {$now >= $return_time} break
+			# Forward step: prefer cheap reverse goto nudge, fall back to debug step.
+			if {[catch {
+				# Small forward jump; reverse goto stops at instruction boundaries.
+				set cycle_period [expr {1.0 / [machine_info [get_active_cpu]_freq]}]
+				reverse goto -novideo [expr {$now + $cycle_period}]
+			}]} {
+				catch {debug step}
+			}
+			set after [dict get [reverse status] "current"]
+			if {$after <= $now} {
+				# No progress; try debug step
+				if {[catch {debug step}]} break
+				set after2 [dict get [reverse status] "current"]
+				if {$after2 <= $now} break
+			}
+		}
+		if {$target <= 0} break
+		set delta [expr {$delta * 2.0}]
+	}
+
+	# Fallback: precise instruction-by-instruction walk back.
+	reverse goto -novideo $ret_time
+	set limit 100000
 	for {set i 0} {$i < $limit} {incr i} {
 		if {[reg PC] == $call_addr} return
 		set before [dict get [reverse status] "current"]
