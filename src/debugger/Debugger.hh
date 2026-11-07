@@ -93,6 +93,7 @@ private:
 		void writeBlock(std::span<const TclObject> tokens, TclObject& result);
 		void disasm(std::span<const TclObject> tokens, TclObject& result, EmuTime time) const;
 		void disasmBlob(std::span<const TclObject> tokens, TclObject& result) const;
+		void blockStack(TclObject& result);
 		void breakPoint(std::span<const TclObject> tokens, TclObject& result);
 		void watchPoint(std::span<const TclObject> tokens, TclObject& result);
 		void watchExpr(std::span<const TclObject> tokens, TclObject& result);

@@ -16,6 +16,8 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace openmsx {
 
@@ -131,6 +133,11 @@ public:
 	  * penalties of fetching the opcode.
 	  */
 	[[nodiscard]] std::optional<EmuTime> getBlockStart() const;
+
+	/** Returns the block-repeat context stack, most recent first. Each
+	  * entry is a (pc, sp) pair. Unused entries have pc == uint32_t(-1).
+	  */
+	[[nodiscard]] std::vector<std::pair<uint32_t, uint16_t>> getBlockStack() const;
 
 	template<typename Archive>
 	void serialize(Archive& ar, unsigned version);

@@ -16,6 +16,8 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <utility>
+#include <vector>
 
 namespace openmsx {
 
@@ -152,6 +154,9 @@ public:
 
 	/** See CPUCore::getBlockStart(). Queries the currently active CPU. */
 	[[nodiscard]] std::optional<EmuTime> getBlockStart() const;
+
+	/** See CPUCore::getBlockStack(). Queries the currently active CPU. */
+	[[nodiscard]] std::vector<std::pair<uint32_t, uint16_t>> getBlockStack() const;
 
 	[[nodiscard]] auto* getZ80() { return z80.get(); }
 	[[nodiscard]] auto* getR800() { return r800.get(); }

@@ -388,6 +388,24 @@ proc step_back {} {
 
 
 #
+# print_blockstack
+#
+set_help_text print_blockstack \
+{Print the block-repeat context stack: the PC and SP of each currently
+executing (possibly nested) block instruction, most recent first. The PC is
+the address of the second opcode byte, as stored in the stack; unused entries
+are shown with PC=0xFFFFFFFF.}
+proc print_blockstack {} {
+	set i 0
+	foreach entry [debug blockstack] {
+		lassign $entry pc sp
+		puts [format "blockStack\[%d\]: PC=0x%04X SP=0x%04X" $i $pc $sp]
+		incr i
+	}
+}
+
+
+#
 # skip one instruction
 #
 set_help_text skip_instruction \
@@ -426,6 +444,7 @@ namespace export step_out
 namespace export step_in
 namespace export step
 namespace export skip_instruction
+namespace export print_blockstack
 
 } ;# namespace disasm
 

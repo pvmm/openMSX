@@ -354,6 +354,12 @@ std::optional<EmuTime> MSXCPU::getBlockStart() const
 	                 : r800->getBlockStart();
 }
 
+std::vector<std::pair<uint32_t, uint16_t>> MSXCPU::getBlockStack() const
+{
+	return z80Active ? z80 ->getBlockStack()
+	                 : r800->getBlockStack();
+}
+
 void MSXCPU::update(const Setting& setting) noexcept
 {
 	          z80 ->update(setting);

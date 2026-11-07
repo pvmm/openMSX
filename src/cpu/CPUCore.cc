@@ -4052,6 +4052,17 @@ template<typename T> std::optional<EmuTime> CPUCore<T>::getBlockStart() const
 	return {};
 }
 
+template<typename T> std::vector<std::pair<uint32_t, uint16_t>> CPUCore<T>::getBlockStack() const
+{
+	std::vector<std::pair<uint32_t, uint16_t>> result;
+	result.reserve(MAX_BLOCK_CONTEXTS);
+	for (auto i : xrange(MAX_BLOCK_CONTEXTS)) {
+		const auto& entry = blockStack[i];
+		result.emplace_back(entry.pc, entry.sp);
+	}
+	return result;
+}
+
 // block CP
 template<typename T> inline II CPUCore<T>::BLOCK_CP(int increase, bool repeat) {
 	if (repeat) noteBlockRepeatEntry();

@@ -237,6 +237,7 @@ void Debugger::Cmd::execute(
 		"cont",              [&]{ debugger().motherBoard.getCPUInterface().doContinue(); },
 		"disasm",            [&]{ disasm(tokens, result, time); },
 		"disasm_blob",       [&]{ disasmBlob(tokens, result); },
+		"blockstack",        [&]{ blockStack(result); },
 		"break",             [&]{ debugger().motherBoard.getCPUInterface().doBreak(); },
 		"breaked",           [&]{ result = MSXCPUInterface::isBreaked(); },
 		"breakpoint",        [&]{ breakPoint(tokens, result); },
@@ -395,6 +396,14 @@ void Debugger::Cmd::disasmBlob(std::span<const TclObject> tokens, TclObject& res
 	dasmOutput.resize(19, ' ');
 	result.addListElement(dasmOutput);
 	result.addListElement(*len);
+}
+
+void Debugger::Cmd::blockStack(TclObject& result)
+{
+	for (const auto& [pc, sp] : debugger().motherBoard.getCPU().getBlockStack()) {
+		result.addListElement(makeTclList(static_cast<unsigned>(pc),
+		                                  static_cast<unsigned>(sp)));
+	}
 }
 
 void Debugger::Cmd::breakPoint(std::span<const TclObject> tokens, TclObject& result)
@@ -1190,6 +1199,7 @@ std::string Debugger::Cmd::help(std::span<const TclObject> tokens) const
 		"    breaked      query CPU breaked status\n"
 		"    disasm       disassemble instructions\n"
 		"    disasm_blob  disassemble a instruction in Tcl binary string\n"
+		"    blockstack   dump the block-repeat context stack\n"
 		"    symbols      manage debug symbols\n"
 		"    trace        trace related subcommands\n"
 		"  The arguments are specific for each subcommand.\n"
@@ -1500,6 +1510,10 @@ std::string Debugger::Cmd::help(std::span<const TclObject> tokens) const
 		"that replaces that address if a symbol that matches the address "
 		"is found.\n  "
 		+ addressNote + "\n";
+	constexpr auto blockStackHelp =
+		"debug blockstack\n"
+		"  Returns the block-repeat context stack as a list of {PC SP} "
+		"pairs, most recent first. Unused entries have PC 0xFFFFFFFF.\n";
 	constexpr auto symbolsHelp =
 		"debug symbols <subcommand> [<arguments>]\n"
 		"  Possible subcommands are:\n"
@@ -1623,6 +1637,8 @@ std::string Debugger::Cmd::help(std::span<const TclObject> tokens) const
 		return std::string(disasmHelp);
 	} else if (tokens[1] == "disasm_blob") {
 		return std::string(disasmBlobHelp);
+	} else if (tokens[1] == "blockstack") {
+		return std::string(blockStackHelp);
 	} else if (tokens[1] == "symbols") {
 		return symbolsHelp;
 	} else if (tokens[1] == "trace") {
@@ -1669,7 +1685,7 @@ void Debugger::Cmd::tabCompletion(std::vector<std::string>& tokens) const
 		"write"sv, "write_block"sv,
 	};
 	static constexpr std::array otherCmds = {
-		"disasm"sv, "disasm_blob"sv, "set_bp"sv, "remove_bp"sv, "set_watchpoint"sv,
+		"disasm"sv, "disasm_blob"sv, "blockstack"sv, "set_bp"sv, "remove_bp"sv, "set_watchpoint"sv,
 		"remove_watchpoint"sv, "set_condition"sv, "remove_condition"sv, "trace"sv,
 		"probe"sv, "symbols"sv, "breakpoint"sv, "watchpoint"sv, "watchexpr"sv, "condition"sv,
 	};
