@@ -5,6 +5,8 @@
 
 #include "narrow.hh"
 
+#include <climits>
+
 namespace openmsx {
 
 [[noreturn]] static void throwException(Tcl_Interp* interp)

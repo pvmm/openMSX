@@ -3,6 +3,8 @@
 
 #include "CompressedFileAdapter.hh"
 
+#include <string>
+
 namespace openmsx {
 
 class ZipFileAdapter final : public CompressedFileAdapter
@@ -13,6 +15,7 @@ public:
 private:
 	void decompress(FileBase& file, Decompressed& decompressed) override;
 	std::string extension;
+	std::string archiveStem;
 };
 
 } // namespace openmsx
